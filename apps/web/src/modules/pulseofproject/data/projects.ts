@@ -14,6 +14,7 @@ export interface Project {
   team: number;
   url?: string;
   category: string;
+  shareToken?: string; // Unique token for client sharing
 }
 
 export const projects: Project[] = [
@@ -29,7 +30,8 @@ export const projects: Project[] = [
     starred: true,
     deadline: '2026-01-24',
     team: 7,
-    category: 'Healthcare'
+    category: 'Healthcare',
+    shareToken: 'lbw-share-x7k9p'
   },
   {
     id: 'call-center-betser',
@@ -42,7 +44,8 @@ export const projects: Project[] = [
     starred: true,
     deadline: '2026-02-15',
     team: 4,
-    category: 'Business Operations'
+    category: 'Business Operations',
+    shareToken: 'betser-cc-m3n2q'
   },
   {
     id: 'orma',
@@ -55,7 +58,8 @@ export const projects: Project[] = [
     deadline: '2026-01-31',
     team: 3,
     url: 'https://orma-eight.vercel.app/',
-    category: 'Business'
+    category: 'Business',
+    shareToken: 'orma-share-z8w4r'
   },
   {
     id: '4csecure',
@@ -68,7 +72,8 @@ export const projects: Project[] = [
     deadline: '2026-02-10',
     team: 5,
     url: 'https://4csecure-guide-distribution.vercel.app/',
-    category: 'Security'
+    category: 'Security',
+    shareToken: '4csecure-view-p5t7k'
   },
   {
     id: 'betser-life',
@@ -601,6 +606,9 @@ export const getProjectsByCategory = (category: string) =>
 
 export const getProjectById = (id: string) =>
   projects.find(p => p.id === id);
+
+export const getProjectByShareToken = (shareToken: string) =>
+  projects.find(p => p.shareToken === shareToken);
 
 // Categories for filtering
 export const categories = [

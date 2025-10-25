@@ -175,21 +175,6 @@ const PulseOfProject: React.FC<PulseOfProjectProps> = ({
     }, 1500);
   };
 
-  if (clientMode) {
-    return (
-      <>
-        <ClientPortal projectData={projectData} />
-        {showChat && (
-          <ChatCollaboration
-            projectName={selectedProject}
-            clientMode={clientMode}
-            onClose={() => setShowChat(false)}
-          />
-        )}
-      </>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
       {/* Product Header */}
@@ -211,74 +196,78 @@ const PulseOfProject: React.FC<PulseOfProjectProps> = ({
               </div>
             </div>
 
-            <div className="flex items-center gap-4">
-              {/* Sync Status */}
-              <div className="flex items-center gap-2 px-4 py-2 bg-gray-50 rounded-lg">
-                <RefreshCw className={`w-4 h-4 ${syncStatus === 'syncing' ? 'animate-spin' : ''}`} />
-                <span className="text-sm">
-                  {syncStatus === 'syncing' ? 'Syncing...' :
-                   syncStatus === 'success' ? 'Synced' :
-                   syncStatus === 'error' ? 'Sync Failed' : 'Ready'}
-                </span>
-                <span className="text-xs text-gray-500">
-                  {lastSync.toLocaleTimeString()}
-                </span>
+            {!clientMode && (
+              <div className="flex items-center gap-4">
+                {/* Sync Status */}
+                <div className="flex items-center gap-2 px-4 py-2 bg-gray-50 rounded-lg">
+                  <RefreshCw className={`w-4 h-4 ${syncStatus === 'syncing' ? 'animate-spin' : ''}`} />
+                  <span className="text-sm">
+                    {syncStatus === 'syncing' ? 'Syncing...' :
+                     syncStatus === 'success' ? 'Synced' :
+                     syncStatus === 'error' ? 'Sync Failed' : 'Ready'}
+                  </span>
+                  <span className="text-xs text-gray-500">
+                    {lastSync.toLocaleTimeString()}
+                  </span>
+                </div>
+
+                {/* Auto-Update Toggle */}
+                <button
+                  onClick={() => setAutoUpdateEnabled(!autoUpdateEnabled)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                    autoUpdateEnabled
+                      ? 'bg-green-100 text-green-700 border border-green-300'
+                      : 'bg-gray-100 text-gray-600 border border-gray-300'
+                  }`}
+                >
+                  <Zap className="w-4 h-4" />
+                  <span className="text-sm font-medium">
+                    Auto-Update {autoUpdateEnabled ? 'ON' : 'OFF'}
+                  </span>
+                </button>
+
+                {/* Chat/Collaboration */}
+                <button
+                  onClick={() => setShowChat(!showChat)}
+                  className={`relative p-2 rounded-lg transition-colors flex items-center gap-2 ${
+                    showChat ? 'bg-indigo-100 text-indigo-600' : 'hover:bg-gray-100 text-gray-700'
+                  }`}
+                  title="Project Chat"
+                >
+                  <MessageSquare className="w-5 h-5" />
+                  <span className="text-sm font-medium">Chat</span>
+                  <span className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                </button>
+
+                {/* Notifications */}
+                <button className="relative p-2 rounded-lg hover:bg-gray-100">
+                  <Bell className="w-5 h-5" />
+                  {notifications.length > 0 && (
+                    <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full" />
+                  )}
+                </button>
+
+                {/* Settings */}
+                <button className="p-2 rounded-lg hover:bg-gray-100">
+                  <Settings className="w-5 h-5" />
+                </button>
               </div>
-
-              {/* Auto-Update Toggle */}
-              <button
-                onClick={() => setAutoUpdateEnabled(!autoUpdateEnabled)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-                  autoUpdateEnabled
-                    ? 'bg-green-100 text-green-700 border border-green-300'
-                    : 'bg-gray-100 text-gray-600 border border-gray-300'
-                }`}
-              >
-                <Zap className="w-4 h-4" />
-                <span className="text-sm font-medium">
-                  Auto-Update {autoUpdateEnabled ? 'ON' : 'OFF'}
-                </span>
-              </button>
-
-              {/* Chat/Collaboration */}
-              <button
-                onClick={() => setShowChat(!showChat)}
-                className={`relative p-2 rounded-lg transition-colors flex items-center gap-2 ${
-                  showChat ? 'bg-indigo-100 text-indigo-600' : 'hover:bg-gray-100 text-gray-700'
-                }`}
-                title="Project Chat"
-              >
-                <MessageSquare className="w-5 h-5" />
-                <span className="text-sm font-medium">Chat</span>
-                <span className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-              </button>
-
-              {/* Notifications */}
-              <button className="relative p-2 rounded-lg hover:bg-gray-100">
-                <Bell className="w-5 h-5" />
-                {notifications.length > 0 && (
-                  <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full" />
-                )}
-              </button>
-
-              {/* Settings */}
-              <button className="p-2 rounded-lg hover:bg-gray-100">
-                <Settings className="w-5 h-5" />
-              </button>
-            </div>
+            )}
           </div>
         </div>
       </header>
 
       {/* Main Content */}
       <div className="flex">
-        {/* Sidebar - Integration Panel */}
-        <aside className="w-80 bg-white border-r border-gray-200 h-[calc(100vh-73px)]">
-          <IntegrationPanel
-            integrations={integrations}
-            onConnect={connectIntegration}
-          />
-        </aside>
+        {/* Sidebar - Integration Panel (hidden in client mode) */}
+        {!clientMode && (
+          <aside className="w-80 bg-white border-r border-gray-200 h-[calc(100vh-73px)]">
+            <IntegrationPanel
+              integrations={integrations}
+              onConnect={connectIntegration}
+            />
+          </aside>
+        )}
 
         {/* Main Dashboard */}
         <main className="flex-1 p-6 overflow-y-auto">
@@ -286,6 +275,7 @@ const PulseOfProject: React.FC<PulseOfProjectProps> = ({
           <ProjectSelector
             selectedProject={selectedProject}
             onProjectChange={setSelectedProject}
+            clientMode={clientMode}
           />
 
           {/* Metrics Dashboard - SECOND */}
@@ -363,15 +353,17 @@ const PulseOfProject: React.FC<PulseOfProjectProps> = ({
         </main>
       </div>
 
-      {/* Floating Action Button for Manual Sync */}
-      <motion.button
-        whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.95 }}
-        onClick={syncProjectProgress}
-        className="fixed bottom-6 left-6 p-4 bg-indigo-600 text-white rounded-full shadow-lg hover:bg-indigo-700 transition-colors"
-      >
-        <RefreshCw className={`w-6 h-6 ${syncStatus === 'syncing' ? 'animate-spin' : ''}`} />
-      </motion.button>
+      {/* Floating Action Button for Manual Sync (hidden in client mode) */}
+      {!clientMode && (
+        <motion.button
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={syncProjectProgress}
+          className="fixed bottom-6 left-6 p-4 bg-indigo-600 text-white rounded-full shadow-lg hover:bg-indigo-700 transition-colors"
+        >
+          <RefreshCw className={`w-6 h-6 ${syncStatus === 'syncing' ? 'animate-spin' : ''}`} />
+        </motion.button>
+      )}
 
       {/* Chat Collaboration Module */}
       {showChat && (

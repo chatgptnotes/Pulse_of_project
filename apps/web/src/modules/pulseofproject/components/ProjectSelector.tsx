@@ -10,11 +10,13 @@ import { projects, categories, getProjectsByPriority } from '../data/projects';
 interface ProjectSelectorProps {
   selectedProject: string;
   onProjectChange: (projectId: string) => void;
+  clientMode?: boolean;
 }
 
 const ProjectSelector: React.FC<ProjectSelectorProps> = ({
   selectedProject,
-  onProjectChange
+  onProjectChange,
+  clientMode = false
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -115,19 +117,21 @@ const ProjectSelector: React.FC<ProjectSelectorProps> = ({
               </div>
             </div>
 
-            <button
-              onClick={() => setIsOpen(!isOpen)}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
-            >
-              <span className="text-sm font-medium">Switch Project</span>
-              <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-            </button>
+            {!clientMode && (
+              <button
+                onClick={() => setIsOpen(!isOpen)}
+                className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+              >
+                <span className="text-sm font-medium">Switch Project</span>
+                <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+              </button>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Project Dropdown */}
-      {isOpen && (
+      {/* Project Dropdown (hidden in client mode) */}
+      {!clientMode && isOpen && (
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}

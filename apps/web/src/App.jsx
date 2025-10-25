@@ -13,6 +13,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import ProjectTrackingPage from './pages/ProjectTracking.jsx';
 import PulseOfProjectPage from './pages/PulseOfProject.jsx';
 import PulseOfProjectLanding from './pages/PulseOfProjectLanding.jsx';
+import ClientView from './pages/ClientView.jsx';
 
 
 function App() {
@@ -103,6 +104,9 @@ function App() {
             <Route path="/activation-pending" element={<ActivationPending />} />
             <Route path="/forgot-password" element={<ForgotPasswordForm />} />
             <Route path="/reset-password" element={<ResetPasswordForm />} />
+
+            {/* Client Share View - Public (no login required) */}
+            <Route path="/client/:shareToken" element={<ClientView />} />
 
             {/* Protected Routes */}
 
