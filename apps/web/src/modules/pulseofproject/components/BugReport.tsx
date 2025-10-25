@@ -34,7 +34,7 @@ interface BugReportProps {
 }
 
 const BugReport: React.FC<BugReportProps> = ({
-  projectName = 'LinkList Project',
+  projectName = 'linklist',
   version = 'v1.0.0',
   onBugsUpdate
 }) => {
@@ -77,8 +77,8 @@ const BugReport: React.FC<BugReportProps> = ({
   const loadBugs = async () => {
     try {
       setLoading(true);
-      const projectNameForDB = projectName === 'LinkList Project' ? 'LinkList' : 'Neuro360';
-      const fetchedBugs = await bugTrackingService.getBugReports(projectNameForDB);
+      // Use the actual project name for filtering bugs
+      const fetchedBugs = await bugTrackingService.getBugReports(projectName);
       setBugs(fetchedBugs);
       onBugsUpdate?.(fetchedBugs);
     } catch (error) {
@@ -149,10 +149,9 @@ const BugReport: React.FC<BugReportProps> = ({
 
     try {
       setSaving(true);
-      const projectNameForDB = projectName === 'LinkList Project' ? 'LinkList' : 'Neuro360';
 
       const bugData = {
-        project_name: projectNameForDB,
+        project_name: projectName,
         project_version: version,
         date: newBug.date || new Date().toISOString().split('T')[0],
         module: newBug.module || 'E-commerce',
@@ -272,7 +271,6 @@ const BugReport: React.FC<BugReportProps> = ({
         // For existing bugs, upload immediately
         try {
           setSaving(true);
-          const projectNameForDB = projectName === 'LinkList Project' ? 'LinkList' : 'Neuro360';
           // Note: This would need the bug ID, so we'll implement this in the edit modal
           console.log('Image upload for existing bug - implement in edit modal');
         } catch (error) {

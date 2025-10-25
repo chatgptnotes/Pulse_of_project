@@ -284,7 +284,7 @@ const PulseOfProject: React.FC<PulseOfProjectProps> = ({
           {/* Bug Report Module - THIRD (Below project info) */}
           <div className="mt-6">
             <BugReport
-              projectName={selectedProject === 'linklist' ? 'LinkList Project' : selectedProject}
+              projectName={selectedProject}
               version="v1.0.0"
               onBugsUpdate={setBugs}
             />
@@ -293,7 +293,7 @@ const PulseOfProject: React.FC<PulseOfProjectProps> = ({
           {/* Testing Tracker Module - FOURTH (Below bug reports) */}
           <div className="mt-6">
             <TestingTracker
-              projectName={selectedProject === 'linklist' ? 'LinkList Project' : selectedProject}
+              projectName={selectedProject}
               bugs={bugs}
             />
           </div>
