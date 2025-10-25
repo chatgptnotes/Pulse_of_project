@@ -38,6 +38,21 @@ const BugReport: React.FC<BugReportProps> = ({
   version = 'v1.0.0',
   onBugsUpdate
 }) => {
+  // Map project IDs to database project names
+  // Database constraint only allows 'LinkList' and 'Neuro360'
+  const getDBProjectName = (projectId: string): string => {
+    if (projectId === 'linkist-nfc' || projectId.toLowerCase().includes('linkist') || projectId.toLowerCase().includes('linklist')) {
+      return 'LinkList';
+    }
+    if (projectId === 'neurosense-360' || projectId.toLowerCase().includes('neuro')) {
+      return 'Neuro360';
+    }
+    // Default fallback
+    return 'LinkList';
+  };
+
+  const dbProjectName = getDBProjectName(projectName);
+
   const [bugs, setBugs] = useState<Bug[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -77,7 +92,7 @@ const BugReport: React.FC<BugReportProps> = ({
   const loadBugs = async () => {
     try {
       setLoading(true);
-      console.log('🐛 Loading bugs for project:', projectName);
+      console.log('🐛 Loading bugs for project:', projectName, '(DB name:', dbProjectName + ')');
 
       if (!projectName || projectName === '') {
         console.warn('⚠️ No project name provided, skipping bug load');
@@ -86,9 +101,9 @@ const BugReport: React.FC<BugReportProps> = ({
         return;
       }
 
-      // Use the actual project name for filtering bugs
-      const fetchedBugs = await bugTrackingService.getBugReports(projectName);
-      console.log(`✅ Loaded ${fetchedBugs.length} bugs for ${projectName}`);
+      // Use the database project name for filtering bugs
+      const fetchedBugs = await bugTrackingService.getBugReports(dbProjectName);
+      console.log(`✅ Loaded ${fetchedBugs.length} bugs for ${projectName} (${dbProjectName})`);
       setBugs(fetchedBugs);
       onBugsUpdate?.(fetchedBugs);
     } catch (error) {
@@ -159,10 +174,10 @@ const BugReport: React.FC<BugReportProps> = ({
 
     try {
       setSaving(true);
-      console.log('🐛 Adding bug for project:', projectName);
+      console.log('🐛 Adding bug for project:', projectName, '(DB name:', dbProjectName + ')');
 
       const bugData = {
-        project_name: projectName,
+        project_name: dbProjectName,
         project_version: version,
         date: newBug.date || new Date().toISOString().split('T')[0],
         module: newBug.module || 'E-commerce',
