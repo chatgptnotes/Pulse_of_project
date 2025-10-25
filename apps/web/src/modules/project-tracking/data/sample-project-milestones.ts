@@ -1,7 +1,7 @@
 import { ProjectMilestone, MilestoneKPI, ProjectTask } from '../types';
 
 // 12-Week Project Timeline: November 1, 2025 - January 24, 2026
-export const neurosenseMilestones: ProjectMilestone[] = [
+export const sampleProjectMilestones: ProjectMilestone[] = [
   {
     id: 'milestone-1',
     name: 'Phase 1: Foundation & Infrastructure',
@@ -502,7 +502,7 @@ export const projectOverview = {
   startDate: new Date('2025-11-01'),
   endDate: new Date('2026-01-24'),
   status: 'active' as const,
-  milestones: neurosenseMilestones,
+  milestones: sampleProjectMilestones,
   tasks: neurosenseTasks,
   team: [
     { id: '1', name: 'Project Manager', email: 'pm@bettroi.com', role: 'Project Management', allocation: 100 },

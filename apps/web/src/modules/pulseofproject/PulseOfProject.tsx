@@ -15,7 +15,7 @@ import ChatCollaboration from './components/ChatCollaboration';
 import BugReport from './components/BugReport';
 import TestingTracker from './components/TestingTracker';
 import GanttChart from '../project-tracking/components/GanttChart';
-import { projectOverview } from '../project-tracking/data/neurosense-milestones';
+import { projectOverview } from '../project-tracking/data/sample-project-milestones';
 
 interface PulseOfProjectProps {
   clientMode?: boolean;

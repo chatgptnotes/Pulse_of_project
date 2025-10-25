@@ -4,7 +4,7 @@ import { HTML5Backend } from 'react-dnd-html5-backend';
 import GanttChart from './components/GanttChart';
 import KPIDashboard from './components/KPIDashboard';
 import ClientCollaboration from './components/ClientCollaboration';
-import { projectOverview } from './data/neurosense-milestones';
+import { projectOverview } from './data/sample-project-milestones';
 import { ProjectComment, ProjectUpdate, ProjectMilestone, MilestoneKPI } from './types';
 import {
   BarChart3, MessageSquare, Target, FileText, Settings,

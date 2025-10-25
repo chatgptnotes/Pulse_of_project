@@ -5,7 +5,7 @@ import EditableMilestone from './components/EditableMilestone';
 import GanttChart from './components/GanttChart';
 import KPIDashboard from './components/KPIDashboard';
 import ClientCollaboration from './components/ClientCollaboration';
-import { projectOverview as defaultProjectData } from './data/neurosense-milestones';
+import { projectOverview as defaultProjectData } from './data/sample-project-milestones';
 import { ProjectData, ProjectComment, ProjectUpdate, ProjectMilestone, ProjectTask } from './types';
 import {
   Edit, Save, Download, Upload, Share2, RefreshCw,

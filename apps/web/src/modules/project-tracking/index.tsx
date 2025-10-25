@@ -15,7 +15,7 @@ export { ProjectTrackingService } from './services/projectTrackingService';
 export * from './types';
 
 // Export data
-export { projectOverview, neurosenseMilestones, neurosenseTasks } from './data/neurosense-milestones';
+export { projectOverview, sampleProjectMilestones, neurosenseTasks } from './data/sample-project-milestones';
 
 // Main component wrapper for easy integration
 const ProjectTracking: React.FC = () => {
