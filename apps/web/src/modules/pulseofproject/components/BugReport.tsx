@@ -77,8 +77,18 @@ const BugReport: React.FC<BugReportProps> = ({
   const loadBugs = async () => {
     try {
       setLoading(true);
+      console.log('🐛 Loading bugs for project:', projectName);
+
+      if (!projectName || projectName === '') {
+        console.warn('⚠️ No project name provided, skipping bug load');
+        setBugs([]);
+        onBugsUpdate?.([]);
+        return;
+      }
+
       // Use the actual project name for filtering bugs
       const fetchedBugs = await bugTrackingService.getBugReports(projectName);
+      console.log(`✅ Loaded ${fetchedBugs.length} bugs for ${projectName}`);
       setBugs(fetchedBugs);
       onBugsUpdate?.(fetchedBugs);
     } catch (error) {
@@ -149,6 +159,7 @@ const BugReport: React.FC<BugReportProps> = ({
 
     try {
       setSaving(true);
+      console.log('🐛 Adding bug for project:', projectName);
 
       const bugData = {
         project_name: projectName,
@@ -164,6 +175,8 @@ const BugReport: React.FC<BugReportProps> = ({
         testing_status: newBug.testing_status || 'Pending',
         reported_by: 'Current User'
       };
+
+      console.log('📝 Bug data to save:', { project_name: bugData.project_name, snag: bugData.snag });
 
       const savedBug = await bugTrackingService.createBugReport(bugData);
 
