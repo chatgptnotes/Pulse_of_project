@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import Cookies from 'js-cookie';
-import { authService } from '../services/authService';
+// Note: authService removed - using BYPASS_AUTH mode for PulseOfProject
 import { createClient } from '@supabase/supabase-js';
 
 // Get Supabase environment variables
@@ -209,78 +209,13 @@ export const AuthProvider = ({ children }) => {
 
     try {
       setLoading(true);
-      let response;
-      
+
       console.log('📧 Login method:', method);
       console.log('📝 Credentials:', { email: credentials.email, hasPassword: !!credentials.password });
-      
-      switch (method) {
-        case 'email':
-          response = await authService.loginWithEmail(credentials);
-          break;
-        case 'google':
-          response = await authService.loginWithGoogle();
-          break;
-        case 'github':
-          response = await authService.loginWithGitHub();
-          break;
-        case 'facebook':
-          response = await authService.loginWithFacebook();
-          break;
-        default:
-          throw new Error('Invalid authentication method');
-      }
 
-      console.log('📦 Auth response:', response);
+      // Production authentication disabled - using BYPASS_AUTH mode
+      throw new Error('Production authentication not configured. Please enable VITE_BYPASS_AUTH in .env');
 
-      if (response && response.success && response.token) {
-        // Store authentication data in multiple places for reliability
-        Cookies.set('authToken', response.token, { expires: 7 }); // 7 days
-        localStorage.setItem('authToken', response.token);
-        
-        // Fetch the latest user data from DynamoDB to get updated profile picture
-        let latestUserData = response.user;
-        try {
-          console.log('🔄 Fetching latest user data from DynamoDB...');
-          if (response.user.role === 'super_admin') {
-            const superAdminData = await DatabaseService.findById('superAdmins', response.user.id);
-            if (superAdminData) {
-              latestUserData = { ...response.user, ...superAdminData };
-              console.log('✅ Super admin data fetched from DynamoDB');
-            }
-          } else if (response.user.role === 'clinic_admin') {
-            const clinicData = await DatabaseService.findById('clinics', response.user.id);
-            if (clinicData) {
-              latestUserData = { ...response.user, ...clinicData };
-              console.log('✅ Clinic admin data fetched from DynamoDB');
-            }
-          }
-        } catch (dbError) {
-          console.warn('⚠️ Failed to fetch latest user data from DynamoDB, using API response:', dbError);
-          // Continue with API response if DynamoDB fetch fails
-        }
-        
-        // Store the latest user data
-        localStorage.setItem('user', JSON.stringify(latestUserData));
-        
-        // Set state
-        setUser(latestUserData);
-        setIsAuthenticated(true);
-        
-        console.log('✅ AuthContext: User data stored:', {
-          name: latestUserData.name,
-          role: latestUserData.role,
-          clinicId: latestUserData.clinicId,
-          hasAvatar: !!latestUserData.avatar
-        });
-        
-        toast.success('Logged in successfully');
-        console.log('✅ AuthContext: Login completed successfully');
-        return { success: true, user: latestUserData };
-      } else {
-        console.log('❌ AuthContext: Invalid response format:', response);
-        throw new Error('Authentication failed');
-      }
     } catch (error) {
       console.error('🚨 AuthContext: Login failed:', error);
       toast.error(error.message || 'Login failed. Please try again.');
@@ -330,96 +265,18 @@ export const AuthProvider = ({ children }) => {
 
     try {
       setLoading(true);
-      let response;
-      
+
       console.log('📧 Registration method:', method);
-      console.log('📝 User data:', { 
-        name: userData.name, 
-        email: userData.email, 
+      console.log('📝 User data:', {
+        name: userData.name,
+        email: userData.email,
         userType: userData.userType,
         hasPassword: !!userData.password,
-        hasConfirmPassword: !!userData.confirmPassword 
+        hasConfirmPassword: !!userData.confirmPassword
       });
-      
-      switch (method) {
-        case 'email':
-          console.log('🔄 Calling authService.registerWithEmail...');
-          response = await authService.registerWithEmail(userData);
-          console.log('📦 AuthService response:', response);
-          break;
-        case 'google':
-          response = await authService.registerWithGoogle();
-          break;
-        case 'github':
-          response = await authService.registerWithGitHub();
-          break;
-        case 'facebook':
-          response = await authService.registerWithFacebook();
-          break;
-        default:
-          throw new Error('Invalid registration method');
-      }
 
-      console.log('✅ AuthContext: Registration response received', response);
-
-      if (response && response.success) {
-        if (response.needsActivation) {
-          // Super admin needs activation - don't login automatically
-          toast.success(response.message || 'Registration submitted for approval!');
-          console.log('✅ AuthContext: Registration completed - needs activation');
-          return { success: true, needsActivation: true };
-        } else if (response.token) {
-          // Normal registration with immediate login
-          Cookies.set('authToken', response.token, { expires: 7 });
-          localStorage.setItem('authToken', response.token);
-          
-          // Fetch the latest user data from DynamoDB to get updated profile picture
-          let latestUserData = response.user;
-          try {
-            console.log('🔄 Fetching latest user data from DynamoDB after registration...');
-            if (response.user.role === 'super_admin') {
-              const superAdminData = await DatabaseService.findById('superAdmins', response.user.id);
-              if (superAdminData) {
-                latestUserData = { ...response.user, ...superAdminData };
-                console.log('✅ Super admin data fetched from DynamoDB');
-              }
-            } else if (response.user.role === 'clinic_admin') {
-              const clinicData = await DatabaseService.findById('clinics', response.user.id);
-              if (clinicData) {
-                latestUserData = { ...response.user, ...clinicData };
-                console.log('✅ Clinic admin data fetched from DynamoDB');
-              }
-            }
-          } catch (dbError) {
-            console.warn('⚠️ Failed to fetch latest user data from DynamoDB, using API response:', dbError);
-            // Continue with API response if DynamoDB fetch fails
-          }
-          
-          // Store the latest user data
-          localStorage.setItem('user', JSON.stringify(latestUserData));
-          
-          setUser(latestUserData);
-          setIsAuthenticated(true);
-          
-          console.log('✅ AuthContext: Registration user data stored:', {
-            name: response.user.name,
-            role: response.user.role,
-            clinicId: response.user.clinicId
-          });
-          
-          toast.success(response.message || 'Registration successful!');
-          console.log('✅ AuthContext: Registration completed successfully');
-          return { success: true };
-        } else {
-          console.log('❌ AuthContext: Registration success but no token provided');
-          return { success: false, error: 'Registration completed but login failed' };
-        }
-      } else {
-        // Handle case where response doesn't have success field or is falsy
-        console.log('❌ AuthContext: Invalid registration response format:', response);
-        const errorMessage = response?.error || response?.message || 'Registration failed with unknown error';
-        return { success: false, error: errorMessage };
-      }
+      // Production authentication disabled - using BYPASS_AUTH mode
+      throw new Error('Production registration not configured. Please enable VITE_BYPASS_AUTH in .env');
     } catch (error) {
       console.error('Registration failed:', error);
       toast.error(error.message || 'Registration failed. Please try again.');
@@ -433,10 +290,7 @@ export const AuthProvider = ({ children }) => {
     try {
       console.log('🚪 Logging out user...');
 
-      // For development mode, we don't need to call authService
-      if (!BYPASS_AUTH) {
-        await authService.logout();
-      }
+      // authService removed - using BYPASS_AUTH mode
 
       // Clear all authentication data
       if (typeof window !== 'undefined') {
@@ -499,9 +353,9 @@ export const AuthProvider = ({ children }) => {
   const forgotPassword = async (email) => {
     try {
       setLoading(true);
-      await authService.forgotPassword(email);
-      toast.success('Password reset email sent!');
-      return { success: true };
+      // authService removed - password reset not available in bypass mode
+      toast.info('Password reset not configured. Using development mode.');
+      return { success: false, error: 'Not configured' };
     } catch (error) {
       console.error('Forgot password failed:', error);
       toast.error(error.message || 'Failed to send reset email');
@@ -514,9 +368,9 @@ export const AuthProvider = ({ children }) => {
   const resetPassword = async (token, newPassword) => {
     try {
       setLoading(true);
-      await authService.resetPassword(token, newPassword);
-      toast.success('Password reset successful!');
-      return { success: true };
+      // authService removed - password reset not available in bypass mode
+      toast.info('Password reset not configured. Using development mode.');
+      return { success: false, error: 'Not configured' };
     } catch (error) {
       console.error('Password reset failed:', error);
       toast.error(error.message || 'Password reset failed');
@@ -537,26 +391,9 @@ export const AuthProvider = ({ children }) => {
       
       // Update localStorage
       localStorage.setItem('user', JSON.stringify(updatedUser));
-      
-      // Save to DynamoDB based on user role
-      try {
-        if (user?.role === 'super_admin') {
-          // Update super admin in DynamoDB
-          await DatabaseService.update('superAdmins', user.id, userData);
-          console.log('✅ Super admin profile saved to DynamoDB');
-        } else if (user?.role === 'clinic_admin') {
-          // Update clinic admin in DynamoDB
-          await DatabaseService.update('clinics', user.id, userData);
-          console.log('✅ Clinic admin profile saved to DynamoDB');
-        } else {
-          // For regular users, update in appropriate table
-          await DatabaseService.update('users', user.id, userData);
-          console.log('✅ User profile saved to DynamoDB');
-        }
-      } catch (dbError) {
-        console.warn('⚠️ Failed to save to DynamoDB, but local update successful:', dbError);
-        // Don't fail the entire operation if DynamoDB fails
-      }
+
+      // Database save disabled in BYPASS_AUTH mode
+      console.log('✅ User profile updated in local storage (database save skipped)');
       
       toast.success('Profile updated successfully!');
       console.log('✅ Profile updated successfully');

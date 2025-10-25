@@ -4,28 +4,12 @@ import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './contexts/AuthContext';
 import { testSupabaseConnection } from './utils/supabaseTest';
 import ProtectedRoute from './components/ProtectedRoute';
-import LandingPage from './pages/Landing.jsx';
-import LBWProjectUpdates from './pages/LBWProjectUpdates.jsx';
-import LBWAssessments from './pages/LBWAssessments.jsx';
-import LBWCoaching from './pages/LBWCoaching.jsx';
-import LBWMainLanding from './pages/LBWMainLanding.jsx';
-import LBWDashboard from './pages/LBWDashboard.jsx';
-import LBWProgress from './pages/LBWProgress.jsx';
-import LBWQEEG from './pages/LBWQEEG.jsx';
-import LBWContent from './pages/LBWContent.jsx';
 import LoginForm from './components/auth/LoginForm';
 import RegisterForm from './components/auth/RegisterForm';
 import ForgotPasswordForm from './components/auth/ForgotPasswordForm';
 import ResetPasswordForm from './components/auth/ResetPasswordForm';
 import ActivationPending from './components/auth/ActivationPending';
-
-import SuperAdminPanel from './components/admin/SuperAdminPanel';
-import ClinicDashboard from './components/clinic/ClinicDashboard';
-import SubscriptionManager from './components/clinic/SubscriptionManager';
-import PatientDashboard from './components/patient/PatientDashboard';
-import DashboardRouter from './components/DashboardRouter';
 import ErrorBoundary from './components/ErrorBoundary';
-import DevelopmentModeHelper from './components/auth/DevelopmentModeHelper';
 import ProjectTrackingPage from './pages/ProjectTracking.jsx';
 import PulseOfProjectPage from './pages/PulseOfProject.jsx';
 import PulseOfProjectLanding from './pages/PulseOfProjectLanding.jsx';
@@ -34,10 +18,10 @@ import PulseOfProjectLanding from './pages/PulseOfProjectLanding.jsx';
 function App() {
   console.log('🚀 App component loading...');
 
-  // Test Supabase connection on app startup
+  // Test Bug Tracking database connection on app startup
   useEffect(() => {
     const runConnectionTest = async () => {
-      console.log('🚀 Neuro360 Multi-Auth System Starting...');
+      console.log('🚀 PulseOfProject Bug Tracking System Starting...');
       await testSupabaseConnection();
     };
 
@@ -105,15 +89,6 @@ function App() {
             {/* Public Routes */}
             <Route path="/" element={<PulseOfProjectPage />} />
             <Route path="/about" element={<PulseOfProjectLanding />} />
-            <Route path="/neuro-landing" element={<LandingPage />} />
-            <Route path="/lbw" element={<LBWMainLanding />} />
-            <Route path="/lbw-updates" element={<LBWProjectUpdates />} />
-            <Route path="/assessments" element={<LBWAssessments />} />
-            <Route path="/coaching" element={<LBWCoaching />} />
-            <Route path="/lbw/dashboard" element={<LBWDashboard />} />
-            <Route path="/lbw/progress" element={<LBWProgress />} />
-            <Route path="/lbw/qeeg" element={<LBWQEEG />} />
-            <Route path="/lbw/content" element={<LBWContent />} />
 
             {/* Public Project Tracking Route (for testing/demo) */}
             <Route path="/project-tracking-public" element={<ProjectTrackingPage />} />
@@ -128,77 +103,18 @@ function App() {
             <Route path="/activation-pending" element={<ActivationPending />} />
             <Route path="/forgot-password" element={<ForgotPasswordForm />} />
             <Route path="/reset-password" element={<ResetPasswordForm />} />
-            
+
             {/* Protected Routes */}
-            
-            {/* Super Admin Routes */}
-            <Route 
-              path="/admin" 
-              element={
-                <ProtectedRoute requiredRole="super_admin">
-                  <SuperAdminPanel />
-                </ProtectedRoute>
-              } 
-            />
-            
-            {/* Clinic Routes */}
-            <Route 
-              path="/clinic" 
-              element={
-                <ProtectedRoute requiredRole="clinic_admin">
-                  <ClinicDashboard />
-                </ProtectedRoute>
-              } 
-            />
-            
-            <Route
-              path="/clinic/subscription"
-              element={
-                <ProtectedRoute requiredRole="clinic_admin">
-                  <SubscriptionManager />
-                </ProtectedRoute>
-              }
-            />
 
-            {/* Patient Routes */}
-            <Route
-              path="/patient"
-              element={
-                <ProtectedRoute requiredRole="patient">
-                  <PatientDashboard />
-                </ProtectedRoute>
-              }
-            />
-
-            <Route
-              path="/patient-dashboard"
-              element={
-                <ProtectedRoute requiredRole="patient">
-                  <PatientDashboard />
-                </ProtectedRoute>
-              }
-            />
-
-            {/* Smart Dashboard Route - redirects based on user role */}
-            <Route
-              path="/dashboard"
-              element={
-                <ProtectedRoute>
-                  <DashboardRouter />
-                </ProtectedRoute>
-              }
-            />
-
-            {/* Project Tracking Route - accessible to super admin and clinic admin */}
+            {/* Project Tracking Route */}
             <Route
               path="/project-tracking"
               element={
-                <ProtectedRoute requiredRole={["super_admin", "clinic_admin"]}>
+                <ProtectedRoute>
                   <ProjectTrackingPage />
                 </ProtectedRoute>
               }
             />
-
 
             {/* Catch all route - redirect to landing page */}
             <Route path="*" element={<Navigate to="/" replace />} />
@@ -230,9 +146,6 @@ function App() {
               },
             }}
           />
-
-          {/* Development Mode Helper */}
-          <DevelopmentModeHelper />
           </div> {/* Close main App div */}
         </Router>
       </AuthProvider>
