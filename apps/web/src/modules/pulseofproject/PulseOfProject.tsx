@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Activity, GitBranch, Github, Gitlab, AlertCircle, CheckCircle2,
   Settings, Users, BarChart3, Calendar, Zap, Bell, Download,
-  Upload, Share2, RefreshCw, Webhook, Database, Cloud, MessageSquare
+  Upload, Share2, RefreshCw, Webhook, Database, Cloud, MessageSquare, Menu, X
 } from 'lucide-react';
 import { PRODUCT_CONFIG, CLIENT_CONFIG } from './config/brand';
 import ProjectSelector from './components/ProjectSelector';
@@ -36,6 +36,7 @@ const PulseOfProject: React.FC<PulseOfProjectProps> = ({
   const [notifications, setNotifications] = useState<Array<any>>([]);
   const [showChat, setShowChat] = useState(true);
   const [bugs, setBugs] = useState([]);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [integrations, setIntegrations] = useState({
     github: { connected: false, repos: [] },
     gitlab: { connected: false, projects: [] },
@@ -182,6 +183,20 @@ const PulseOfProject: React.FC<PulseOfProjectProps> = ({
         <div className="px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
+              {/* Hamburger Menu Button */}
+              {!clientMode && (
+                <button
+                  onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                  className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                  title={isSidebarOpen ? "Hide sidebar" : "Show sidebar"}
+                >
+                  {isSidebarOpen ? (
+                    <X className="w-6 h-6 text-gray-700" />
+                  ) : (
+                    <Menu className="w-6 h-6 text-gray-700" />
+                  )}
+                </button>
+              )}
               <Activity className="w-8 h-8 text-indigo-600" />
               <div>
                 <div className="flex items-center gap-3">
@@ -258,19 +273,27 @@ const PulseOfProject: React.FC<PulseOfProjectProps> = ({
       </header>
 
       {/* Main Content */}
-      <div className="flex">
+      <div className="flex relative">
         {/* Sidebar - Integration Panel (hidden in client mode) */}
-        {!clientMode && (
-          <aside className="w-80 bg-white border-r border-gray-200 h-[calc(100vh-73px)]">
-            <IntegrationPanel
-              integrations={integrations}
-              onConnect={connectIntegration}
-            />
-          </aside>
-        )}
+        <AnimatePresence>
+          {!clientMode && isSidebarOpen && (
+            <motion.aside
+              initial={{ x: -320, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: -320, opacity: 0 }}
+              transition={{ duration: 0.3, ease: "easeInOut" }}
+              className="w-80 bg-white border-r border-gray-200 h-[calc(100vh-73px)] overflow-y-auto"
+            >
+              <IntegrationPanel
+                integrations={integrations}
+                onConnect={connectIntegration}
+              />
+            </motion.aside>
+          )}
+        </AnimatePresence>
 
         {/* Main Dashboard */}
-        <main className="flex-1 p-6 overflow-y-auto">
+        <main className={`flex-1 p-6 overflow-y-auto transition-all duration-300 ${!isSidebarOpen || clientMode ? 'ml-0' : ''}`}>
           {/* Project Selector - TOP */}
           <ProjectSelector
             selectedProject={selectedProject}

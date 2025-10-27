@@ -14,6 +14,7 @@ import ProjectTrackingPage from './pages/ProjectTracking.jsx';
 import PulseOfProjectPage from './pages/PulseOfProject.jsx';
 import PulseOfProjectLanding from './pages/PulseOfProjectLanding.jsx';
 import ClientView from './pages/ClientView.jsx';
+import ShareLinksPage from './pages/ShareLinksPage.jsx';
 
 
 function App() {
@@ -107,6 +108,11 @@ function App() {
 
             {/* Client Share View - Public (no login required) */}
             <Route path="/client/:shareToken" element={<ClientView />} />
+
+            {/* Project Share Links - Public */}
+            <Route path="/sharelinks" element={<ShareLinksPage />} />
+            <Route path="/share-links" element={<ShareLinksPage />} />
+            <Route path="/project-links" element={<ShareLinksPage />} />
 
             {/* Protected Routes */}
 
