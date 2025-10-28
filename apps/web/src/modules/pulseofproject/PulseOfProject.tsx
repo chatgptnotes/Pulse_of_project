@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import {
   Activity, GitBranch, Github, Gitlab, AlertCircle, CheckCircle2,
   Settings, Users, BarChart3, Calendar, Zap, Bell, Download,
-  Upload, Share2, RefreshCw, Webhook, Database, Cloud, MessageSquare, Menu, X
+  Upload, Share2, RefreshCw, Webhook, Database, Cloud, MessageSquare, Menu, X, ArrowRight, Edit3
 } from 'lucide-react';
 import { PRODUCT_CONFIG, CLIENT_CONFIG } from './config/brand';
 import ProjectSelector from './components/ProjectSelector';
@@ -15,6 +16,7 @@ import ChatCollaboration from './components/ChatCollaboration';
 import BugReport from './components/BugReport';
 import TestingTracker from './components/TestingTracker';
 import GanttChart from '../project-tracking/components/GanttChart';
+import ProjectDocuments from '../project-tracking/components/ProjectDocuments';
 import { projectOverview } from '../project-tracking/data/sample-project-milestones';
 
 interface PulseOfProjectProps {
@@ -28,6 +30,7 @@ const PulseOfProject: React.FC<PulseOfProjectProps> = ({
   projectId = 'neurosense-mvp',
   apiKey
 }) => {
+  const navigate = useNavigate();
   const [selectedProject, setSelectedProject] = useState(projectId);
   const [projectData, setProjectData] = useState(projectOverview);
   const [autoUpdateEnabled, setAutoUpdateEnabled] = useState(true);
@@ -36,13 +39,18 @@ const PulseOfProject: React.FC<PulseOfProjectProps> = ({
   const [notifications, setNotifications] = useState<Array<any>>([]);
   const [showChat, setShowChat] = useState(true);
   const [bugs, setBugs] = useState([]);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Collapsed by default
   const [integrations, setIntegrations] = useState({
     github: { connected: false, repos: [] },
     gitlab: { connected: false, projects: [] },
     jira: { connected: false, projects: [] },
     slack: { connected: false, channels: [] }
   });
+
+  // Navigate to detailed project tracking page
+  const goToDetailedView = () => {
+    navigate(`/project-tracking-public?project=${selectedProject}`);
+  };
 
   // Automatic progress tracking via webhooks/polling
   const syncProjectProgress = useCallback(async () => {
@@ -183,17 +191,27 @@ const PulseOfProject: React.FC<PulseOfProjectProps> = ({
         <div className="px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              {/* Hamburger Menu Button */}
+              {/* Integrations Sidebar Toggle Button */}
               {!clientMode && (
                 <button
                   onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                  className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-                  title={isSidebarOpen ? "Hide sidebar" : "Show sidebar"}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${
+                    isSidebarOpen
+                      ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                  title={isSidebarOpen ? "Close Integrations Panel" : "Open Integrations Panel (GitHub, Jira, etc.)"}
                 >
                   {isSidebarOpen ? (
-                    <X className="w-6 h-6 text-gray-700" />
+                    <>
+                      <X className="w-5 h-5" />
+                      <span className="text-sm font-medium hidden md:block">Close</span>
+                    </>
                   ) : (
-                    <Menu className="w-6 h-6 text-gray-700" />
+                    <>
+                      <Menu className="w-5 h-5" />
+                      <span className="text-sm font-medium hidden md:block">Integrations</span>
+                    </>
                   )}
                 </button>
               )}
@@ -301,6 +319,31 @@ const PulseOfProject: React.FC<PulseOfProjectProps> = ({
             clientMode={clientMode}
           />
 
+          {/* Navigate to Detailed Project Tracking Button */}
+          {!clientMode && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-4 mb-6"
+            >
+              <button
+                onClick={goToDetailedView}
+                className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold py-4 px-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-between group"
+              >
+                <div className="flex items-center gap-3">
+                  <Edit3 className="w-5 h-5" />
+                  <div className="text-left">
+                    <div className="text-lg">View Detailed Project Plan</div>
+                    <div className="text-sm opacity-90">
+                      Edit milestones, tasks, dates, and full project details
+                    </div>
+                  </div>
+                </div>
+                <ArrowRight className="w-6 h-6 group-hover:translate-x-1 transition-transform" />
+              </button>
+            </motion.div>
+          )}
+
           {/* Metrics Dashboard - SECOND */}
           <DashboardMetrics projectData={projectData} />
 
@@ -320,6 +363,14 @@ const PulseOfProject: React.FC<PulseOfProjectProps> = ({
               key={`testing-${selectedProject}`}
               projectName={selectedProject}
               bugs={bugs}
+            />
+          </div>
+
+          {/* Project Documents - FIFTH (Below testing tracker) */}
+          <div className="mt-6">
+            <ProjectDocuments
+              projectId={selectedProject}
+              isEditMode={!clientMode}
             />
           </div>
 

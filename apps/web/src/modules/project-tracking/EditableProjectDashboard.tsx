@@ -1,23 +1,22 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import EditableMilestone from './components/EditableMilestone';
 import GanttChart from './components/GanttChart';
 import KPIDashboard from './components/KPIDashboard';
 import ClientCollaboration from './components/ClientCollaboration';
+import ProjectMetadataEditor from './components/ProjectMetadataEditor';
+import ProjectDocuments from './components/ProjectDocuments';
 import { projectOverview as defaultProjectData } from './data/sample-project-milestones';
 import { ProjectData, ProjectComment, ProjectUpdate, ProjectMilestone, ProjectTask } from './types';
 import {
   Edit, Save, Download, Upload, Share2, RefreshCw,
   Lock, Unlock, Users, Clock, Cloud, CloudOff,
-  GitBranch, FileJson, AlertCircle, CheckCircle
+  GitBranch, FileJson, AlertCircle, CheckCircle, Plus, Trash2, ArrowLeft
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
-
-const STORAGE_KEY = 'neurosense-project-data';
-const LAST_SAVED_KEY = 'neurosense-last-saved';
-const EDIT_LOCK_KEY = 'neurosense-edit-lock';
 
 interface EditLock {
   userId: string;
@@ -25,8 +24,17 @@ interface EditLock {
   timestamp: number;
 }
 
-const EditableProjectDashboard: React.FC = () => {
-  const [activeView, setActiveView] = useState<'overview' | 'gantt' | 'kpi' | 'collaboration'>('overview');
+interface EditableProjectDashboardProps {
+  projectId?: string;
+}
+
+const EditableProjectDashboard: React.FC<EditableProjectDashboardProps> = ({ projectId = 'default-project' }) => {
+  const navigate = useNavigate();
+  // Use project-specific storage keys
+  const STORAGE_KEY = `project-${projectId}-data`;
+  const LAST_SAVED_KEY = `project-${projectId}-last-saved`;
+  const EDIT_LOCK_KEY = `project-${projectId}-edit-lock`;
+  const [activeView, setActiveView] = useState<'overview' | 'gantt' | 'kpi' | 'collaboration' | 'documents'>('overview');
   const [isEditMode, setIsEditMode] = useState(false);
   const [projectData, setProjectData] = useState<ProjectData>(defaultProjectData);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -89,9 +97,14 @@ const EditableProjectDashboard: React.FC = () => {
         setProjectData(parsedData);
         toast.success('Project data loaded from local storage');
       } else {
-        // No saved data, use default which starts Nov 1
-        setProjectData(defaultProjectData);
-        toast.info('Loaded default project timeline (Nov 1, 2025 - Jan 10, 2026)');
+        // No saved data, use default which starts Nov 1 and customize for this project
+        const customizedData = {
+          ...defaultProjectData,
+          id: projectId,
+          name: projectId.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
+        };
+        setProjectData(customizedData);
+        toast.info(`Loaded default project timeline for ${customizedData.name} (Nov 1, 2025 - Jan 10, 2026)`);
       }
 
       if (savedTimestamp) {
@@ -231,6 +244,96 @@ const EditableProjectDashboard: React.FC = () => {
     toast.success('Task deleted');
   };
 
+  const handleProjectMetadataUpdate = (updatedMetadata: Partial<ProjectData>) => {
+    const oldStartDate = projectData.startDate;
+    const newStartDate = updatedMetadata.startDate;
+
+    // If start date changed, cascade the change to all milestones and tasks
+    if (newStartDate && oldStartDate.getTime() !== newStartDate.getTime()) {
+      const daysDifference = Math.floor((newStartDate.getTime() - oldStartDate.getTime()) / (1000 * 60 * 60 * 24));
+
+      // Update all milestones
+      const updatedMilestones = projectData.milestones.map(milestone => ({
+        ...milestone,
+        startDate: new Date(milestone.startDate.getTime() + daysDifference * 24 * 60 * 60 * 1000),
+        endDate: new Date(milestone.endDate.getTime() + daysDifference * 24 * 60 * 60 * 1000)
+      }));
+
+      // Update all tasks
+      const updatedTasks = projectData.tasks.map(task => ({
+        ...task,
+        startDate: new Date(task.startDate.getTime() + daysDifference * 24 * 60 * 60 * 1000),
+        endDate: new Date(task.endDate.getTime() + daysDifference * 24 * 60 * 60 * 1000)
+      }));
+
+      setProjectData({
+        ...projectData,
+        ...updatedMetadata,
+        milestones: updatedMilestones,
+        tasks: updatedTasks
+      });
+
+      toast.success(`Project dates shifted by ${Math.abs(daysDifference)} days`);
+    } else {
+      setProjectData({
+        ...projectData,
+        ...updatedMetadata
+      });
+      toast.success('Project details updated');
+    }
+
+    setHasUnsavedChanges(true);
+  };
+
+  const handleAddMilestone = () => {
+    const newMilestone: ProjectMilestone = {
+      id: `milestone-${Date.now()}`,
+      name: 'New Milestone',
+      description: 'Enter milestone description',
+      status: 'pending',
+      startDate: new Date(),
+      endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 1 week from now
+      progress: 0,
+      deliverables: [],
+      assignedTo: [],
+      dependencies: [],
+      kpis: [],
+      order: projectData.milestones.length,
+      color: '#3B82F6'
+    };
+
+    setProjectData({
+      ...projectData,
+      milestones: [...projectData.milestones, newMilestone]
+    });
+    setHasUnsavedChanges(true);
+    toast.success('Milestone added');
+  };
+
+  const handleDeleteMilestone = (milestoneId: string) => {
+    if (!confirm('Are you sure you want to delete this milestone? All associated tasks will also be deleted.')) {
+      return;
+    }
+
+    // Delete milestone and all its tasks
+    const updatedMilestones = projectData.milestones.filter(m => m.id !== milestoneId);
+    const updatedTasks = projectData.tasks.filter(t => t.milestoneId !== milestoneId);
+
+    // Recalculate overall progress
+    const totalProgress = updatedMilestones.length > 0
+      ? updatedMilestones.reduce((sum, m) => sum + m.progress, 0) / updatedMilestones.length
+      : 0;
+
+    setProjectData({
+      ...projectData,
+      milestones: updatedMilestones,
+      tasks: updatedTasks,
+      overallProgress: Math.round(totalProgress)
+    });
+    setHasUnsavedChanges(true);
+    toast.success('Milestone and associated tasks deleted');
+  };
+
   const exportProjectData = () => {
     const dataStr = JSON.stringify(projectData, null, 2);
     const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
@@ -285,6 +388,23 @@ const EditableProjectDashboard: React.FC = () => {
   return (
     <DndProvider backend={HTML5Backend}>
       <div className="min-h-screen bg-gray-50 p-6">
+        {/* Back to Overview Button */}
+        {projectId !== 'default-project' && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-4"
+          >
+            <button
+              onClick={() => navigate(`/pulseofproject?project=${projectId}`)}
+              className="flex items-center gap-2 px-4 py-2 bg-white rounded-lg shadow-md hover:shadow-lg transition-all text-gray-700 hover:text-indigo-600"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span className="font-medium">Back to Project Overview</span>
+            </button>
+          </motion.div>
+        )}
+
         {/* Floating Edit Mode Button (Alternative/Additional) */}
         <motion.div
           initial={{ opacity: 0, scale: 0 }}
@@ -384,39 +504,36 @@ const EditableProjectDashboard: React.FC = () => {
               </div>
             )}
 
-            <div className="flex justify-between items-start mb-4">
-              <div>
-                <h1 className="text-3xl font-bold text-gray-900">{projectData.name}</h1>
-                <p className="text-gray-600 mt-2">{projectData.description}</p>
-                <div className="flex items-center gap-4 mt-4">
-                  <span className={`text-sm px-3 py-1 rounded-full flex items-center gap-2 ${
-                    isOnline ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
-                  }`}>
-                    {isOnline ? <Cloud className="w-4 h-4" /> : <CloudOff className="w-4 h-4" />}
-                    {isOnline ? 'Online' : 'Offline'}
-                  </span>
-                  {lastSaved && (
-                    <span className="text-sm text-gray-500 flex items-center gap-1">
-                      <Clock className="w-4 h-4" />
-                      Last saved: {lastSaved.toLocaleTimeString()}
-                    </span>
-                  )}
-                  {hasUnsavedChanges && (
-                    <span className="text-sm text-yellow-600 flex items-center gap-1">
-                      <AlertCircle className="w-4 h-4" />
-                      Unsaved changes
-                    </span>
-                  )}
-                  {editLock && editLock.userId !== getCurrentUserId() && (
-                    <span className="text-sm text-orange-600 flex items-center gap-1">
-                      <Lock className="w-4 h-4" />
-                      Being edited by {editLock.userName}
-                    </span>
-                  )}
-                </div>
-              </div>
+            {/* Status Bar */}
+            <div className="flex items-center gap-4 mb-4">
+              <span className={`text-sm px-3 py-1 rounded-full flex items-center gap-2 ${
+                isOnline ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
+              }`}>
+                {isOnline ? <Cloud className="w-4 h-4" /> : <CloudOff className="w-4 h-4" />}
+                {isOnline ? 'Online' : 'Offline'}
+              </span>
+              {lastSaved && (
+                <span className="text-sm text-gray-500 flex items-center gap-1">
+                  <Clock className="w-4 h-4" />
+                  Last saved: {lastSaved.toLocaleTimeString()}
+                </span>
+              )}
+              {hasUnsavedChanges && (
+                <span className="text-sm text-yellow-600 flex items-center gap-1">
+                  <AlertCircle className="w-4 h-4" />
+                  Unsaved changes
+                </span>
+              )}
+              {editLock && editLock.userId !== getCurrentUserId() && (
+                <span className="text-sm text-orange-600 flex items-center gap-1">
+                  <Lock className="w-4 h-4" />
+                  Being edited by {editLock.userName}
+                </span>
+              )}
+            </div>
 
-              <div className="flex gap-2 items-center">
+            <div className="flex justify-between items-start mb-4">
+              <div className="flex-1">
                 {/* Edit Mode Toggle Switch */}
                 <div className={`flex items-center gap-3 px-5 py-3 rounded-lg border-2 transition-all ${
                   isEditMode
@@ -541,7 +658,7 @@ const EditableProjectDashboard: React.FC = () => {
 
             {/* View Tabs */}
             <div className="flex gap-2 mt-6 border-t pt-4">
-              {(['overview', 'gantt', 'kpi', 'collaboration'] as const).map(view => (
+              {(['overview', 'gantt', 'kpi', 'collaboration', 'documents'] as const).map(view => (
                 <button
                   key={view}
                   onClick={() => setActiveView(view)}
@@ -556,6 +673,13 @@ const EditableProjectDashboard: React.FC = () => {
               ))}
             </div>
           </motion.div>
+
+          {/* Project Metadata Editor */}
+          <ProjectMetadataEditor
+            projectData={projectData}
+            onUpdate={handleProjectMetadataUpdate}
+            isEditMode={isEditMode}
+          />
 
           {/* Main Content */}
           <AnimatePresence mode="wait">
@@ -607,12 +731,24 @@ const EditableProjectDashboard: React.FC = () => {
 
                   {/* Editable Milestones */}
                   <div className="space-y-4">
+                    {/* Add Milestone Button */}
+                    {isEditMode && (
+                      <button
+                        onClick={handleAddMilestone}
+                        className="w-full py-4 border-2 border-dashed border-blue-300 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 font-medium flex items-center justify-center gap-2 transition-all"
+                      >
+                        <Plus className="w-5 h-5" />
+                        Add New Milestone
+                      </button>
+                    )}
+
                     {projectData.milestones.map(milestone => (
                       <EditableMilestone
                         key={milestone.id}
                         milestone={milestone}
                         tasks={projectData.tasks.filter(t => t.milestoneId === milestone.id)}
                         onUpdate={handleMilestoneUpdate}
+                        onDelete={handleDeleteMilestone}
                         onAddTask={handleAddTask}
                         onUpdateTask={handleUpdateTask}
                         onDeleteTask={handleDeleteTask}
@@ -657,6 +793,13 @@ const EditableProjectDashboard: React.FC = () => {
                   currentUserId={getCurrentUserId()}
                   currentUserName={getCurrentUserName()}
                   currentUserRole="team"
+                />
+              )}
+
+              {activeView === 'documents' && (
+                <ProjectDocuments
+                  projectId={projectData.id}
+                  isEditMode={isEditMode}
                 />
               )}
             </motion.div>

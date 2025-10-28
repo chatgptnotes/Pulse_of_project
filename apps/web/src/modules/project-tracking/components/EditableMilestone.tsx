@@ -11,6 +11,7 @@ interface EditableMilestoneProps {
   milestone: ProjectMilestone;
   tasks: ProjectTask[];
   onUpdate: (milestone: ProjectMilestone) => void;
+  onDelete: (milestoneId: string) => void;
   onAddTask: (task: Omit<ProjectTask, 'id'>) => void;
   onUpdateTask: (task: ProjectTask) => void;
   onDeleteTask: (taskId: string) => void;
@@ -21,6 +22,7 @@ const EditableMilestone: React.FC<EditableMilestoneProps> = ({
   milestone,
   tasks,
   onUpdate,
+  onDelete,
   onAddTask,
   onUpdateTask,
   onDeleteTask,
@@ -158,23 +160,35 @@ const EditableMilestone: React.FC<EditableMilestoneProps> = ({
                 <button
                   onClick={handleSave}
                   className="p-2 bg-green-500 text-white rounded hover:bg-green-600"
+                  title="Save changes"
                 >
                   <Save className="w-4 h-4" />
                 </button>
                 <button
                   onClick={handleCancel}
                   className="p-2 bg-red-500 text-white rounded hover:bg-red-600"
+                  title="Cancel editing"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </>
             ) : (
-              <button
-                onClick={() => setIsEditing(true)}
-                className="p-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-              >
-                <Edit2 className="w-4 h-4" />
-              </button>
+              <>
+                <button
+                  onClick={() => setIsEditing(true)}
+                  className="p-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                  title="Edit milestone"
+                >
+                  <Edit2 className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => onDelete(milestone.id)}
+                  className="p-2 bg-red-500 text-white rounded hover:bg-red-600"
+                  title="Delete milestone"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </>
             )}
           </div>
         )}
