@@ -15,6 +15,9 @@ import PulseOfProjectPage from './pages/PulseOfProject.jsx';
 import PulseOfProjectLanding from './pages/PulseOfProjectLanding.jsx';
 import ClientView from './pages/ClientView.jsx';
 import ShareLinksPage from './pages/ShareLinksPage.jsx';
+import WelcomePage from './pages/WelcomePage.jsx';
+import SimpleAuth from './pages/SimpleAuth.jsx';
+import AdminPage from './pages/AdminPage.jsx';
 
 
 function App() {
@@ -89,8 +92,9 @@ function App() {
             <div className="pt-12"> {/* Add padding to account for banner */}
             <Routes>
             {/* Public Routes */}
-            <Route path="/" element={<PulseOfProjectPage />} />
+            <Route path="/" element={<WelcomePage />} />
             <Route path="/about" element={<PulseOfProjectLanding />} />
+            <Route path="/auth" element={<SimpleAuth />} />
 
             {/* Public Project Tracking Route (for testing/demo) */}
             <Route path="/project-tracking-public" element={<ProjectTrackingPage />} />
@@ -100,11 +104,14 @@ function App() {
             <Route path="/pulse" element={<PulseOfProjectPage />} />
             <Route path="/pulse-demo" element={<PulseOfProjectPage />} />
 
-            <Route path="/login" element={<LoginForm />} />
+            <Route path="/login" element={<SimpleAuth />} />
             <Route path="/register" element={<RegisterForm />} />
             <Route path="/activation-pending" element={<ActivationPending />} />
             <Route path="/forgot-password" element={<ForgotPasswordForm />} />
             <Route path="/reset-password" element={<ResetPasswordForm />} />
+
+            {/* Admin Routes */}
+            <Route path="/admin" element={<AdminPage />} />
 
             {/* Client Share View - Public (no login required) */}
             <Route path="/client/:shareToken" element={<ClientView />} />

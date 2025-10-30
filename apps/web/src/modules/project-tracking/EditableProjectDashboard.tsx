@@ -74,28 +74,55 @@ const EditableProjectDashboard: React.FC<EditableProjectDashboardProps> = ({ pro
       const savedTimestamp = localStorage.getItem(LAST_SAVED_KEY);
 
       if (savedData) {
-        const parsedData = JSON.parse(savedData);
-        // Convert date strings back to Date objects
-        parsedData.startDate = new Date(parsedData.startDate);
-        parsedData.endDate = new Date(parsedData.endDate);
-        parsedData.milestones = parsedData.milestones.map((m: any) => ({
-          ...m,
-          startDate: new Date(m.startDate),
-          endDate: new Date(m.endDate)
-        }));
-        parsedData.tasks = parsedData.tasks.map((t: any) => ({
-          ...t,
-          startDate: new Date(t.startDate),
-          endDate: new Date(t.endDate)
-        }));
+        try {
+          const parsedData = JSON.parse(savedData);
 
-        // Check if this is old data (starts before Nov 1, 2025)
-        if (parsedData.startDate < new Date('2025-11-01')) {
-          toast.info('Detected old timeline. Click the red reset button to update to Nov 1 start date.');
+          // Validate that parsedData has required properties
+          if (!parsedData || !parsedData.milestones || !parsedData.tasks) {
+            throw new Error('Invalid data structure');
+          }
+
+          // Convert date strings back to Date objects with validation
+          parsedData.startDate = new Date(parsedData.startDate);
+          parsedData.endDate = new Date(parsedData.endDate);
+
+          // Validate dates
+          if (isNaN(parsedData.startDate.getTime()) || isNaN(parsedData.endDate.getTime())) {
+            throw new Error('Invalid dates in saved data');
+          }
+
+          parsedData.milestones = parsedData.milestones.map((m: any) => ({
+            ...m,
+            startDate: new Date(m.startDate),
+            endDate: new Date(m.endDate)
+          }));
+          parsedData.tasks = parsedData.tasks.map((t: any) => ({
+            ...t,
+            startDate: new Date(t.startDate),
+            endDate: new Date(t.endDate)
+          }));
+
+          // Check if this is old data (starts before Nov 1, 2025)
+          if (parsedData.startDate < new Date('2025-11-01')) {
+            toast.info('Detected old timeline. Click the red reset button to update to Nov 1 start date.');
+          }
+
+          setProjectData(parsedData);
+          toast.success('Project data loaded from local storage');
+        } catch (parseError) {
+          console.warn('Corrupted saved data, using defaults:', parseError);
+          // Clear corrupted data
+          localStorage.removeItem(STORAGE_KEY);
+
+          // Load defaults
+          const customizedData = {
+            ...defaultProjectData,
+            id: projectId,
+            name: projectId.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
+          };
+          setProjectData(customizedData);
+          toast.info(`Loaded default project timeline for ${customizedData.name} (corrupted data cleared)`);
         }
-
-        setProjectData(parsedData);
-        toast.success('Project data loaded from local storage');
       } else {
         // No saved data, use default which starts Nov 1 and customize for this project
         const customizedData = {
@@ -108,11 +135,22 @@ const EditableProjectDashboard: React.FC<EditableProjectDashboardProps> = ({ pro
       }
 
       if (savedTimestamp) {
-        setLastSaved(new Date(savedTimestamp));
+        try {
+          setLastSaved(new Date(savedTimestamp));
+        } catch (e) {
+          // Ignore invalid timestamp
+        }
       }
     } catch (error) {
       console.error('Failed to load project data:', error);
-      toast.error('Failed to load saved data');
+      // Don't show error toast, just use defaults
+      const customizedData = {
+        ...defaultProjectData,
+        id: projectId,
+        name: projectId.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
+      };
+      setProjectData(customizedData);
+      toast.info(`Using default project timeline for ${customizedData.name}`);
     }
   };
 
