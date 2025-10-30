@@ -47,6 +47,71 @@ const PulseOfProject: React.FC<PulseOfProjectProps> = ({
     slack: { connected: false, channels: [] }
   });
 
+  // Update selectedProject when projectId prop changes
+  useEffect(() => {
+    setSelectedProject(projectId);
+  }, [projectId]);
+
+  // Load project data based on selected project
+  useEffect(() => {
+    import('./data/projects').then(({ projects }) => {
+      const project = projects.find(p => p.id === selectedProject);
+      if (project) {
+        // Generate milestone data based on project progress
+        const totalMilestones = 10;
+        const completedCount = Math.floor((project.progress / 100) * totalMilestones);
+        const inProgressCount = project.progress < 100 ? 1 : 0;
+
+        const milestones = Array.from({ length: totalMilestones }, (_, i) => {
+          const milestoneNumber = i + 1;
+          let status: 'completed' | 'in-progress' | 'pending' = 'pending';
+          let progress = 0;
+
+          if (milestoneNumber <= completedCount) {
+            status = 'completed';
+            progress = 100;
+          } else if (milestoneNumber === completedCount + 1 && inProgressCount > 0) {
+            status = 'in-progress';
+            progress = ((project.progress % 10) || 10) * 10;
+          }
+
+          return {
+            id: `milestone-${milestoneNumber}`,
+            name: `Phase ${milestoneNumber}: ${['Foundation', 'Development', 'Integration', 'Testing', 'Polish', 'Deployment', 'Launch', 'Optimization', 'Scale', 'Completion'][i]}`,
+            description: `Phase ${milestoneNumber} of project development`,
+            status,
+            startDate: new Date(),
+            endDate: new Date(),
+            progress,
+            deliverables: [],
+            assignedTo: [],
+            dependencies: [],
+            order: milestoneNumber,
+            color: '#4F46E5',
+            kpis: []
+          };
+        });
+
+        setProjectData({
+          ...projectOverview,
+          id: project.id,
+          name: project.name,
+          description: project.description || `${project.client} project`,
+          client: project.client,
+          overallProgress: project.progress,
+          milestones,
+          team: Array.from({ length: project.team }, (_, i) => ({
+            id: String(i + 1),
+            name: `Team Member ${i + 1}`,
+            email: `member${i + 1}@${project.client.toLowerCase().replace(/\s+/g, '')}.com`,
+            role: 'Developer',
+            allocation: 100
+          }))
+        });
+      }
+    });
+  }, [selectedProject]);
+
   // Navigate to detailed project tracking page
   const goToDetailedView = () => {
     navigate(`/project-tracking-public?project=${selectedProject}`);
