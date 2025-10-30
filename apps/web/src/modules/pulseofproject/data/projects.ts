@@ -109,7 +109,7 @@ export const projects: Project[] = [
     priority: 1,
     progress: 90,
     starred: true,
-    deadline: '2025-12-31',
+    deadline: '2025-10-16',
     team: 3,
     url: 'https://linkist-app.vercel.app/',
     category: 'Networking'

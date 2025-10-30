@@ -92,12 +92,19 @@ const PulseOfProject: React.FC<PulseOfProjectProps> = ({
           };
         });
 
+        // Calculate start and end dates
+        const endDate = project.deadline ? new Date(project.deadline) : new Date(Date.now() + 90 * 24 * 60 * 60 * 1000); // Default 90 days from now
+        const startDate = new Date(endDate);
+        startDate.setMonth(startDate.getMonth() - 3); // Start date is 3 months before end date
+
         setProjectData({
           ...projectOverview,
           id: project.id,
           name: project.name,
           description: project.description || `${project.client} project`,
           client: project.client,
+          startDate,
+          endDate,
           overallProgress: project.progress,
           milestones,
           team: Array.from({ length: project.team }, (_, i) => ({
