@@ -104,7 +104,9 @@ const EditableProjectDashboard: React.FC<EditableProjectDashboardProps> = ({ pro
 
           // Check if this is old data (starts before Nov 1, 2025)
           if (parsedData.startDate < new Date('2025-11-01')) {
-            toast.info('Detected old timeline. Click the red reset button to update to Nov 1 start date.');
+            toast('Detected old timeline. Click the red reset button to update to Nov 1 start date.', {
+              icon: 'ℹ️',
+            });
           }
 
           setProjectData(parsedData);
@@ -121,7 +123,9 @@ const EditableProjectDashboard: React.FC<EditableProjectDashboardProps> = ({ pro
             name: projectId.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
           };
           setProjectData(customizedData);
-          toast.info(`Loaded default project timeline for ${customizedData.name} (corrupted data cleared)`);
+          toast(`Loaded default project timeline for ${customizedData.name} (corrupted data cleared)`, {
+            icon: 'ℹ️',
+          });
         }
       } else {
         // No saved data, use default which starts Nov 1 and customize for this project
@@ -131,7 +135,9 @@ const EditableProjectDashboard: React.FC<EditableProjectDashboardProps> = ({ pro
           name: projectId.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
         };
         setProjectData(customizedData);
-        toast.info(`Loaded default project timeline for ${customizedData.name} (Nov 1, 2025 - Jan 10, 2026)`);
+        toast(`Loaded default project timeline for ${customizedData.name} (Nov 1, 2025 - Jan 10, 2026)`, {
+          icon: 'ℹ️',
+        });
       }
 
       if (savedTimestamp) {
@@ -150,7 +156,9 @@ const EditableProjectDashboard: React.FC<EditableProjectDashboardProps> = ({ pro
         name: projectId.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
       };
       setProjectData(customizedData);
-      toast.info(`Using default project timeline for ${customizedData.name}`);
+      toast(`Using default project timeline for ${customizedData.name}`, {
+        icon: 'ℹ️',
+      });
     }
   };
 
