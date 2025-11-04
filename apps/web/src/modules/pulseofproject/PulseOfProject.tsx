@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import {
   Activity, GitBranch, Github, Gitlab, AlertCircle, CheckCircle2,
   Settings, Users, BarChart3, Calendar, Zap, Bell, Download,
@@ -18,6 +19,7 @@ import TestingTracker from './components/TestingTracker';
 import GanttChart from '../project-tracking/components/GanttChart';
 import ProjectDocuments from '../project-tracking/components/ProjectDocuments';
 import { projectOverview } from '../project-tracking/data/sample-project-milestones';
+import { ProjectTrackingService } from '../project-tracking/services/projectTrackingService';
 
 interface PulseOfProjectProps {
   clientMode?: boolean;
@@ -223,6 +225,63 @@ const PulseOfProject: React.FC<PulseOfProjectProps> = ({
       return updated;
     });
   };
+
+  // Handle deliverable toggle
+  const handleDeliverableToggle = useCallback(async (milestoneId: string, deliverableId: string) => {
+    console.log('=== handleDeliverableToggle CALLED IN PulseOfProject ===');
+    console.log('milestoneId:', milestoneId, 'deliverableId:', deliverableId);
+
+    // Get the milestone data before updating
+    const milestone = projectData.milestones.find(m => m.id === milestoneId);
+
+    // Update local state with functional update
+    setProjectData((prevData) => {
+      const updatedMilestones = prevData.milestones.map(milestone => {
+        if (milestone.id === milestoneId) {
+          const updatedDeliverables = milestone.deliverables.map(deliverable =>
+            deliverable.id === deliverableId
+              ? { ...deliverable, completed: !deliverable.completed }
+              : deliverable
+          );
+          return { ...milestone, deliverables: updatedDeliverables };
+        }
+        return milestone;
+      });
+
+      return {
+        ...prevData,
+        milestones: updatedMilestones
+      };
+    });
+
+    // Save to Supabase with milestone data
+    try {
+      const milestoneData = milestone ? {
+        project_id: projectData.id,
+        name: milestone.name,
+        description: milestone.description,
+        status: milestone.status,
+        start_date: milestone.startDate instanceof Date ? milestone.startDate.toISOString() : new Date(milestone.startDate).toISOString(),
+        end_date: milestone.endDate instanceof Date ? milestone.endDate.toISOString() : new Date(milestone.endDate).toISOString(),
+        progress: milestone.progress,
+        deliverables: milestone.deliverables,
+        assigned_to: milestone.assignedTo || [],
+        dependencies: milestone.dependencies || [],
+        order: milestone.order,
+        color: milestone.color || '#4F46E5'
+      } : undefined;
+
+      const success = await ProjectTrackingService.toggleDeliverable(milestoneId, deliverableId, milestoneData);
+      if (success) {
+        toast.success('Deliverable status saved to database');
+      } else {
+        toast.error('Failed to save to database (saved locally)');
+      }
+    } catch (error) {
+      console.error('Error saving deliverable to Supabase:', error);
+      toast.error('Failed to save to database (saved locally)');
+    }
+  }, [projectData]);
 
   // Auto-sync on interval
   useEffect(() => {
@@ -461,6 +520,7 @@ const PulseOfProject: React.FC<PulseOfProjectProps> = ({
                 ...projectData,
                 viewMode: 'month'
               }}
+              onDeliverableToggle={handleDeliverableToggle}
               showTasks={true}
               interactive={true}
             />

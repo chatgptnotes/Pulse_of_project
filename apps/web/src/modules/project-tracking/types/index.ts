@@ -1,3 +1,9 @@
+export interface Deliverable {
+  id: string;
+  text: string;
+  completed: boolean;
+}
+
 export interface ProjectMilestone {
   id: string;
   name: string;
@@ -6,7 +12,7 @@ export interface ProjectMilestone {
   startDate: Date;
   endDate: Date;
   progress: number;
-  deliverables: string[];
+  deliverables: Deliverable[];
   assignedTo: string[];
   dependencies: string[];
   kpis: MilestoneKPI[];

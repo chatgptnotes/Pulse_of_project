@@ -5,7 +5,8 @@ import {
   ProjectTask,
   ProjectComment,
   ProjectUpdate,
-  MilestoneKPI
+  MilestoneKPI,
+  Deliverable
 } from '../types';
 
 export class ProjectTrackingService {
@@ -78,6 +79,120 @@ export class ProjectTrackingService {
       return true;
     } catch (error) {
       console.error('Error updating milestone:', error);
+      return false;
+    }
+  }
+
+  static async updateDeliverables(milestoneId: string, deliverables: Deliverable[]): Promise<boolean> {
+    try {
+      const { error } = await supabaseService.supabase
+        .from('project_milestones')
+        .update({ deliverables })
+        .eq('id', milestoneId);
+
+      if (error) throw error;
+      console.log('✅ Deliverables updated in Supabase for milestone:', milestoneId);
+      return true;
+    } catch (error) {
+      console.error('Error updating deliverables:', error);
+      return false;
+    }
+  }
+
+  static async toggleDeliverable(milestoneId: string, deliverableId: string, milestoneData?: any): Promise<boolean> {
+    try {
+      // First, try to fetch the current milestone
+      const { data: milestone, error: fetchError } = await supabaseService.supabase
+        .from('project_milestones')
+        .select('*')
+        .eq('id', milestoneId)
+        .single();
+
+      // If milestone doesn't exist and we have the data, create it
+      if (fetchError && fetchError.code === 'PGRST116' && milestoneData) {
+        console.log('Milestone not found, creating it first...');
+
+        // Ensure project exists
+        const { data: project, error: projectError } = await supabaseService.supabase
+          .from('projects')
+          .select('id')
+          .eq('id', milestoneData.project_id || 'neurosense-mvp')
+          .single();
+
+        if (projectError && projectError.code === 'PGRST116') {
+          // Create project first
+          const { error: createProjectError } = await supabaseService.supabase
+            .from('projects')
+            .insert({
+              id: milestoneData.project_id || 'neurosense-mvp',
+              name: 'NeuroSense360 MVP',
+              description: 'Full-stack NeuroSense360 application',
+              client: 'Dr. Murali BK',
+              start_date: new Date().toISOString(),
+              end_date: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString(),
+              status: 'active',
+              overall_progress: 0
+            });
+
+          if (createProjectError) {
+            console.error('Failed to create project:', createProjectError);
+          }
+        }
+
+        // Create the milestone
+        const { error: createError } = await supabaseService.supabase
+          .from('project_milestones')
+          .insert({
+            id: milestoneId,
+            project_id: milestoneData.project_id || 'neurosense-mvp',
+            name: milestoneData.name || 'Phase',
+            description: milestoneData.description || '',
+            status: milestoneData.status || 'pending',
+            start_date: milestoneData.start_date || new Date().toISOString(),
+            end_date: milestoneData.end_date || new Date().toISOString(),
+            progress: milestoneData.progress || 0,
+            deliverables: milestoneData.deliverables || [],
+            assigned_to: milestoneData.assigned_to || [],
+            dependencies: milestoneData.dependencies || [],
+            order: milestoneData.order || 0,
+            color: milestoneData.color || '#4F46E5'
+          });
+
+        if (createError) {
+          console.error('Failed to create milestone:', createError);
+          return false;
+        }
+
+        console.log('✅ Milestone created successfully');
+      } else if (fetchError) {
+        throw fetchError;
+      }
+
+      // Fetch the milestone again (whether it was just created or already existed)
+      const { data: currentMilestone, error: refetchError } = await supabaseService.supabase
+        .from('project_milestones')
+        .select('deliverables')
+        .eq('id', milestoneId)
+        .single();
+
+      if (refetchError) throw refetchError;
+
+      // Toggle the deliverable
+      const updatedDeliverables = currentMilestone.deliverables.map((d: Deliverable) =>
+        d.id === deliverableId ? { ...d, completed: !d.completed } : d
+      );
+
+      // Update the milestone with new deliverables
+      const { error: updateError } = await supabaseService.supabase
+        .from('project_milestones')
+        .update({ deliverables: updatedDeliverables })
+        .eq('id', milestoneId);
+
+      if (updateError) throw updateError;
+      console.log('✅ Deliverable toggled in Supabase:', deliverableId);
+      return true;
+    } catch (error) {
+      console.error('Error toggling deliverable:', error);
       return false;
     }
   }

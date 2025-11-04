@@ -1,4 +1,4 @@
-import { ProjectMilestone, MilestoneKPI, ProjectTask } from '../types';
+import { ProjectMilestone, MilestoneKPI, ProjectTask, Deliverable } from '../types';
 
 // 12-Week Project Timeline: November 1, 2025 - January 24, 2026
 export const sampleProjectMilestones: ProjectMilestone[] = [
@@ -11,10 +11,12 @@ export const sampleProjectMilestones: ProjectMilestone[] = [
     endDate: new Date('2025-11-10'),
     progress: 0,
     deliverables: [
-      'Supabase database setup',
-      'Authentication system (Super Admin, Clinic Admin, Patient)',
-      'Core API structure',
-      'Basic routing and navigation'
+      { id: 'del-1-1', text: 'Signed LOC', completed: false },
+      { id: 'del-1-2', text: 'Receipt of advance payment', completed: false },
+      { id: 'del-1-3', text: 'Supabase database setup', completed: false },
+      { id: 'del-1-4', text: 'Authentication system (Super Admin, Clinic Admin, Patient)', completed: false },
+      { id: 'del-1-5', text: 'Core API structure', completed: false },
+      { id: 'del-1-6', text: 'Basic routing and navigation', completed: false }
     ],
     assignedTo: ['Backend Team', 'DevOps'],
     dependencies: [],
@@ -59,11 +61,11 @@ export const sampleProjectMilestones: ProjectMilestone[] = [
     endDate: new Date('2025-11-17'),
     progress: 0,
     deliverables: [
-      'Landing page similar to biomesight',
-      'Clinic locator with auto-detection',
-      'Enquiry form integration',
-      'YouTube video integration',
-      'Brain health articles section'
+      { id: 'del-2-1', text: 'Landing page similar to biomesight', completed: false },
+      { id: 'del-2-2', text: 'Clinic locator with auto-detection', completed: false },
+      { id: 'del-2-3', text: 'Enquiry form integration', completed: false },
+      { id: 'del-2-4', text: 'YouTube video integration', completed: false },
+      { id: 'del-2-5', text: 'Brain health articles section', completed: false }
     ],
     assignedTo: ['Frontend Team', 'UI/UX Designer'],
     dependencies: ['milestone-1'],
@@ -99,14 +101,14 @@ export const sampleProjectMilestones: ProjectMilestone[] = [
     endDate: new Date('2025-12-01'),
     progress: 0,
     deliverables: [
-      'Multi-clinic onboarding',
-      'User role management',
-      'Report unit SKU catalog',
-      'Revenue analytics dashboard',
-      'Global settings management',
-      'Stripe payment integration',
-      'EDF file handling',
-      'Algorithm 1 & 2 integration'
+      { id: 'del-3-1', text: 'Multi-clinic onboarding', completed: false },
+      { id: 'del-3-2', text: 'User role management', completed: false },
+      { id: 'del-3-3', text: 'Report unit SKU catalog', completed: false },
+      { id: 'del-3-4', text: 'Revenue analytics dashboard', completed: false },
+      { id: 'del-3-5', text: 'Global settings management', completed: false },
+      { id: 'del-3-6', text: 'Stripe payment integration', completed: false },
+      { id: 'del-3-7', text: 'EDF file handling', completed: false },
+      { id: 'del-3-8', text: 'Algorithm 1 & 2 integration', completed: false }
     ],
     assignedTo: ['Full Stack Team', 'Data Science Team'],
     dependencies: ['milestone-1'],
@@ -151,12 +153,12 @@ export const sampleProjectMilestones: ProjectMilestone[] = [
     endDate: new Date('2025-12-10'),
     progress: 0,
     deliverables: [
-      'Patient management interface',
-      'EDF file upload system',
-      'Report access and download',
-      'Usage analytics dashboard',
-      'Subscription management',
-      'Patient follow-up tracking'
+      { id: 'del-4-1', text: 'Patient management interface', completed: false },
+      { id: 'del-4-2', text: 'EDF file upload system', completed: false },
+      { id: 'del-4-3', text: 'Report access and download', completed: false },
+      { id: 'del-4-4', text: 'Usage analytics dashboard', completed: false },
+      { id: 'del-4-5', text: 'Subscription management', completed: false },
+      { id: 'del-4-6', text: 'Patient follow-up tracking', completed: false }
     ],
     assignedTo: ['Frontend Team', 'Backend Team'],
     dependencies: ['milestone-3'],
@@ -192,13 +194,13 @@ export const sampleProjectMilestones: ProjectMilestone[] = [
     endDate: new Date('2025-12-18'),
     progress: 0,
     deliverables: [
-      'Patient login system',
-      'Personal profile management',
-      'Test history view',
-      'NeuroSense report access',
-      'Personalized care plan access',
-      'Educational resources',
-      'Progress tracking graphs'
+      { id: 'del-5-1', text: 'Patient login system', completed: false },
+      { id: 'del-5-2', text: 'Personal profile management', completed: false },
+      { id: 'del-5-3', text: 'Test history view', completed: false },
+      { id: 'del-5-4', text: 'NeuroSense report access', completed: false },
+      { id: 'del-5-5', text: 'Personalized care plan access', completed: false },
+      { id: 'del-5-6', text: 'Educational resources', completed: false },
+      { id: 'del-5-7', text: 'Progress tracking graphs', completed: false }
     ],
     assignedTo: ['Frontend Team', 'UX Team'],
     dependencies: ['milestone-4'],
@@ -234,12 +236,12 @@ export const sampleProjectMilestones: ProjectMilestone[] = [
     endDate: new Date('2025-12-28'),
     progress: 0,
     deliverables: [
-      'Algorithm 1: NeuroSense report generation',
-      'Algorithm 2: Personalized care plan',
-      'Score calculations (Cognition, Stress, Focus, etc.)',
-      'Dynamic meter visualizations',
-      'Report template system',
-      'Care plan template system'
+      { id: 'del-6-1', text: 'Algorithm 1: NeuroSense report generation', completed: false },
+      { id: 'del-6-2', text: 'Algorithm 2: Personalized care plan', completed: false },
+      { id: 'del-6-3', text: 'Score calculations (Cognition, Stress, Focus, etc.)', completed: false },
+      { id: 'del-6-4', text: 'Dynamic meter visualizations', completed: false },
+      { id: 'del-6-5', text: 'Report template system', completed: false },
+      { id: 'del-6-6', text: 'Care plan template system', completed: false }
     ],
     assignedTo: ['Data Science Team', 'Backend Team'],
     dependencies: ['milestone-5'],
@@ -275,12 +277,12 @@ export const sampleProjectMilestones: ProjectMilestone[] = [
     endDate: new Date('2026-01-04'),
     progress: 0,
     deliverables: [
-      'Email notification system',
-      'In-app notifications',
-      'SMS alerts integration',
-      'Usage threshold alerts',
-      'Report ready notifications',
-      'Payment reminders'
+      { id: 'del-7-1', text: 'Email notification system', completed: false },
+      { id: 'del-7-2', text: 'In-app notifications', completed: false },
+      { id: 'del-7-3', text: 'SMS alerts integration', completed: false },
+      { id: 'del-7-4', text: 'Usage threshold alerts', completed: false },
+      { id: 'del-7-5', text: 'Report ready notifications', completed: false },
+      { id: 'del-7-6', text: 'Payment reminders', completed: false }
     ],
     assignedTo: ['Backend Team'],
     dependencies: ['milestone-6'],
@@ -307,12 +309,12 @@ export const sampleProjectMilestones: ProjectMilestone[] = [
     endDate: new Date('2026-01-14'),
     progress: 0,
     deliverables: [
-      'Unit testing coverage',
-      'Integration testing',
-      'End-to-end testing',
-      'Performance testing',
-      'Security audit',
-      'User acceptance testing'
+      { id: 'del-8-1', text: 'Unit testing coverage', completed: false },
+      { id: 'del-8-2', text: 'Integration testing', completed: false },
+      { id: 'del-8-3', text: 'End-to-end testing', completed: false },
+      { id: 'del-8-4', text: 'Performance testing', completed: false },
+      { id: 'del-8-5', text: 'Security audit', completed: false },
+      { id: 'del-8-6', text: 'User acceptance testing', completed: false }
     ],
     assignedTo: ['QA Team', 'All Teams'],
     dependencies: ['milestone-7'],
@@ -348,13 +350,13 @@ export const sampleProjectMilestones: ProjectMilestone[] = [
     endDate: new Date('2026-01-20'),
     progress: 0,
     deliverables: [
-      'Production deployment',
-      'SSL certificate setup',
-      'CDN configuration',
-      'Backup strategy',
-      'User documentation',
-      'API documentation',
-      'Admin guides'
+      { id: 'del-9-1', text: 'Production deployment', completed: false },
+      { id: 'del-9-2', text: 'SSL certificate setup', completed: false },
+      { id: 'del-9-3', text: 'CDN configuration', completed: false },
+      { id: 'del-9-4', text: 'Backup strategy', completed: false },
+      { id: 'del-9-5', text: 'User documentation', completed: false },
+      { id: 'del-9-6', text: 'API documentation', completed: false },
+      { id: 'del-9-7', text: 'Admin guides', completed: false }
     ],
     assignedTo: ['DevOps', 'Technical Writers'],
     dependencies: ['milestone-8'],
@@ -390,12 +392,12 @@ export const sampleProjectMilestones: ProjectMilestone[] = [
     endDate: new Date('2026-01-24'),
     progress: 0,
     deliverables: [
-      'Production go-live',
-      'Client training sessions',
-      'Support handover',
-      'Maintenance documentation',
-      'Performance monitoring setup',
-      'Final deliverables package'
+      { id: 'del-10-1', text: 'Production go-live', completed: false },
+      { id: 'del-10-2', text: 'Client training sessions', completed: false },
+      { id: 'del-10-3', text: 'Support handover', completed: false },
+      { id: 'del-10-4', text: 'Maintenance documentation', completed: false },
+      { id: 'del-10-5', text: 'Performance monitoring setup', completed: false },
+      { id: 'del-10-6', text: 'Final deliverables package', completed: false }
     ],
     assignedTo: ['Project Manager', 'All Teams'],
     dependencies: ['milestone-9'],

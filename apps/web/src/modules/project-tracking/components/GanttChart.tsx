@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { format, differenceInDays, addDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
-import { ChevronDown, ChevronRight, Calendar, Users, AlertCircle, CheckCircle, Clock } from 'lucide-react';
-import { ProjectMilestone, ProjectTask, GanttChartData } from '../types';
+import { ChevronDown, ChevronRight, Calendar, Users, AlertCircle, CheckCircle, Clock, Square, CheckSquare } from 'lucide-react';
+import { ProjectMilestone, ProjectTask, GanttChartData, Deliverable } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface GanttChartProps {
   data: GanttChartData;
   onMilestoneClick?: (milestone: ProjectMilestone) => void;
   onTaskClick?: (task: ProjectTask) => void;
+  onDeliverableToggle?: (milestoneId: string, deliverableId: string) => void;
   showTasks?: boolean;
   interactive?: boolean;
 }
@@ -16,6 +17,7 @@ const GanttChart: React.FC<GanttChartProps> = ({
   data,
   onMilestoneClick,
   onTaskClick,
+  onDeliverableToggle,
   showTasks = true,
   interactive = true
 }) => {
@@ -23,6 +25,15 @@ const GanttChart: React.FC<GanttChartProps> = ({
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'week' | 'month' | 'quarter'>(data.viewMode || 'month');
   const chartRef = useRef<HTMLDivElement>(null);
+
+  // DEBUG: Log props on every render
+  useEffect(() => {
+    console.log('=== GanttChart Render Debug ===');
+    console.log('onDeliverableToggle prop:', onDeliverableToggle);
+    console.log('onDeliverableToggle type:', typeof onDeliverableToggle);
+    console.log('onDeliverableToggle is function:', typeof onDeliverableToggle === 'function');
+    console.log('All props:', { data, onMilestoneClick, onTaskClick, onDeliverableToggle, showTasks, interactive });
+  }, [onDeliverableToggle, data, onMilestoneClick, onTaskClick, showTasks, interactive]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -245,6 +256,75 @@ const GanttChart: React.FC<GanttChartProps> = ({
     );
   };
 
+  const renderDeliverables = (milestone: ProjectMilestone) => {
+    if (!milestone.deliverables || milestone.deliverables.length === 0) {
+      return null;
+    }
+
+    return (
+      <motion.div
+        initial={{ opacity: 0, height: 0 }}
+        animate={{ opacity: 1, height: 'auto' }}
+        exit={{ opacity: 0, height: 0 }}
+        className="ml-8 mb-4 bg-gray-50 rounded-lg p-4 relative z-20"
+      >
+        <h4 className="text-sm font-semibold mb-3 text-gray-700">Deliverables</h4>
+        <div className="space-y-2">
+          {milestone.deliverables.map((deliverable) => (
+            <div
+              key={deliverable.id}
+              className="flex items-start gap-3 group"
+            >
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  console.log('=== DELIVERABLE CHECKBOX CLICKED ===');
+                  console.log('Milestone ID:', milestone.id);
+                  console.log('Deliverable ID:', deliverable.id);
+                  console.log('Deliverable current state:', deliverable.completed);
+                  console.log('onDeliverableToggle at click time:', onDeliverableToggle);
+                  console.log('onDeliverableToggle type at click:', typeof onDeliverableToggle);
+                  console.log('onDeliverableToggle truthiness:', !!onDeliverableToggle);
+
+                  if (onDeliverableToggle) {
+                    console.log('CALLING onDeliverableToggle with:', milestone.id, deliverable.id);
+                    try {
+                      onDeliverableToggle(milestone.id, deliverable.id);
+                      console.log('onDeliverableToggle CALLED SUCCESSFULLY');
+                    } catch (error) {
+                      console.error('ERROR calling onDeliverableToggle:', error);
+                    }
+                  } else {
+                    console.error('CRITICAL: onDeliverableToggle is NOT PROVIDED at click time!');
+                    console.error('Props object:', { onMilestoneClick, onTaskClick, onDeliverableToggle });
+                  }
+                }}
+                className="mt-0.5 text-gray-400 hover:text-blue-600 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
+                type="button"
+              >
+                {deliverable.completed ? (
+                  <CheckSquare className="w-5 h-5 text-green-600" />
+                ) : (
+                  <Square className="w-5 h-5" />
+                )}
+              </button>
+              <span
+                className={`text-sm flex-1 ${
+                  deliverable.completed
+                    ? 'text-gray-500 line-through'
+                    : 'text-gray-700'
+                }`}
+              >
+                {deliverable.text}
+              </span>
+            </div>
+          ))}
+        </div>
+      </motion.div>
+    );
+  };
+
   return (
     <div className="bg-white rounded-xl shadow-lg p-6">
       <div className="flex justify-between items-center mb-6">
@@ -315,6 +395,13 @@ const GanttChart: React.FC<GanttChartProps> = ({
             {data.milestones.map((milestone) => (
               <div key={milestone.id}>
                 {renderMilestoneBar(milestone)}
+
+                {/* Render Deliverables */}
+                {expandedMilestones.has(milestone.id) && (
+                  <AnimatePresence>
+                    {renderDeliverables(milestone)}
+                  </AnimatePresence>
+                )}
 
                 {/* Render Tasks */}
                 {showTasks && expandedMilestones.has(milestone.id) && (

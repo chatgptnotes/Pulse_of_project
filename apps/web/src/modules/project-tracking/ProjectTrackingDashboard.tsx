@@ -6,6 +6,7 @@ import KPIDashboard from './components/KPIDashboard';
 import ClientCollaboration from './components/ClientCollaboration';
 import { projectOverview } from './data/sample-project-milestones';
 import { ProjectComment, ProjectUpdate, ProjectMilestone, MilestoneKPI } from './types';
+import { ProjectTrackingService } from './services/projectTrackingService';
 import {
   BarChart3, MessageSquare, Target, FileText, Settings,
   Download, Share2, RefreshCw, Filter, Calendar
@@ -79,6 +80,59 @@ const ProjectTrackingDashboard: React.FC = () => {
   const handleKPIClick = (kpi: MilestoneKPI) => {
     toast.info(`KPI: ${kpi.name} - ${kpi.current}/${kpi.target} ${kpi.unit}`);
     console.log('KPI clicked:', kpi);
+  };
+
+  const handleDeliverableToggle = async (milestoneId: string, deliverableId: string) => {
+    console.log('Deliverable toggle requested:', milestoneId, deliverableId);
+
+    // Get milestone data before updating
+    const milestone = projectData.milestones.find(m => m.id === milestoneId);
+
+    // Update local state
+    const updatedMilestones = projectData.milestones.map(milestone => {
+      if (milestone.id === milestoneId) {
+        const updatedDeliverables = milestone.deliverables.map(deliverable =>
+          deliverable.id === deliverableId
+            ? { ...deliverable, completed: !deliverable.completed }
+            : deliverable
+        );
+        return { ...milestone, deliverables: updatedDeliverables };
+      }
+      return milestone;
+    });
+
+    setProjectData({
+      ...projectData,
+      milestones: updatedMilestones
+    });
+
+    // Save to Supabase with milestone data
+    try {
+      const milestoneData = milestone ? {
+        project_id: projectData.id,
+        name: milestone.name,
+        description: milestone.description,
+        status: milestone.status,
+        start_date: milestone.startDate instanceof Date ? milestone.startDate.toISOString() : new Date(milestone.startDate).toISOString(),
+        end_date: milestone.endDate instanceof Date ? milestone.endDate.toISOString() : new Date(milestone.endDate).toISOString(),
+        progress: milestone.progress,
+        deliverables: milestone.deliverables,
+        assigned_to: milestone.assignedTo || [],
+        dependencies: milestone.dependencies || [],
+        order: milestone.order,
+        color: milestone.color || '#4F46E5'
+      } : undefined;
+
+      const success = await ProjectTrackingService.toggleDeliverable(milestoneId, deliverableId, milestoneData);
+      if (success) {
+        toast.success('Deliverable status saved to database');
+      } else {
+        toast.error('Failed to save to database (saved locally)');
+      }
+    } catch (error) {
+      console.error('Error saving deliverable to Supabase:', error);
+      toast.error('Failed to save to database (saved locally)');
+    }
   };
 
   const handleSendComment = (comment: Omit<ProjectComment, 'id' | 'timestamp'>) => {
@@ -260,6 +314,7 @@ const ProjectTrackingDashboard: React.FC = () => {
                   viewMode: 'month'
                 }}
                 onMilestoneClick={handleMilestoneClick}
+                onDeliverableToggle={handleDeliverableToggle}
                 showTasks={true}
                 interactive={true}
               />

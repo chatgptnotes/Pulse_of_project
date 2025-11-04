@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
@@ -10,6 +10,7 @@ import ProjectMetadataEditor from './components/ProjectMetadataEditor';
 import ProjectDocuments from './components/ProjectDocuments';
 import { projectOverview as defaultProjectData } from './data/sample-project-milestones';
 import { ProjectData, ProjectComment, ProjectUpdate, ProjectMilestone, ProjectTask } from './types';
+import { ProjectTrackingService } from './services/projectTrackingService';
 import {
   Edit, Save, Download, Upload, Share2, RefreshCw,
   Lock, Unlock, Users, Clock, Cloud, CloudOff,
@@ -256,6 +257,71 @@ const EditableProjectDashboard: React.FC<EditableProjectDashboardProps> = ({ pro
     });
     setHasUnsavedChanges(true);
   };
+
+  const handleDeliverableToggle = useCallback(async (milestoneId: string, deliverableId: string) => {
+    console.log('=== handleDeliverableToggle CALLED IN PARENT ===');
+    console.log('Parent received - milestoneId:', milestoneId, 'deliverableId:', deliverableId);
+
+    // Get milestone data before updating
+    let milestoneData: any = null;
+
+    // Use setProjectData with functional update to get latest state
+    setProjectData((prevData) => {
+      const milestone = prevData.milestones.find(m => m.id === milestoneId);
+
+      if (milestone) {
+        milestoneData = {
+          project_id: prevData.id,
+          name: milestone.name,
+          description: milestone.description,
+          status: milestone.status,
+          start_date: milestone.startDate instanceof Date ? milestone.startDate.toISOString() : new Date(milestone.startDate).toISOString(),
+          end_date: milestone.endDate instanceof Date ? milestone.endDate.toISOString() : new Date(milestone.endDate).toISOString(),
+          progress: milestone.progress,
+          deliverables: milestone.deliverables,
+          assigned_to: milestone.assignedTo || [],
+          dependencies: milestone.dependencies || [],
+          order: milestone.order,
+          color: milestone.color || '#4F46E5'
+        };
+      }
+
+      const updatedMilestones = prevData.milestones.map(milestone => {
+        if (milestone.id === milestoneId) {
+          const updatedDeliverables = milestone.deliverables.map(deliverable =>
+            deliverable.id === deliverableId
+              ? { ...deliverable, completed: !deliverable.completed }
+              : deliverable
+          );
+          console.log('Updated deliverables for milestone:', updatedDeliverables);
+          return { ...milestone, deliverables: updatedDeliverables };
+        }
+        return milestone;
+      });
+
+      console.log('Setting updated project data...');
+      return {
+        ...prevData,
+        milestones: updatedMilestones
+      };
+    });
+
+    setHasUnsavedChanges(true);
+    console.log('Local state updated!');
+
+    // Save to Supabase with milestone data
+    try {
+      const success = await ProjectTrackingService.toggleDeliverable(milestoneId, deliverableId, milestoneData);
+      if (success) {
+        toast.success('Deliverable status saved to database');
+      } else {
+        toast.error('Failed to save to database (saved locally)');
+      }
+    } catch (error) {
+      console.error('Error saving deliverable to Supabase:', error);
+      toast.error('Failed to save to database (saved locally)');
+    }
+  }, []); // Empty deps - this callback never changes, uses functional updates
 
   const handleAddTask = (task: Omit<ProjectTask, 'id'>) => {
     const newTask: ProjectTask = {
@@ -805,19 +871,25 @@ const EditableProjectDashboard: React.FC<EditableProjectDashboardProps> = ({ pro
                 </div>
               )}
 
-              {activeView === 'gantt' && (
-                <GanttChart
-                  data={{
-                    milestones: projectData.milestones,
-                    tasks: projectData.tasks,
-                    startDate: projectData.startDate,
-                    endDate: projectData.endDate,
-                    viewMode: 'month'
-                  }}
-                  showTasks={true}
-                  interactive={true}
-                />
-              )}
+              {activeView === 'gantt' && (() => {
+                console.log('=== RENDERING GanttChart in EditableProjectDashboard ===');
+                console.log('Passing handleDeliverableToggle:', handleDeliverableToggle);
+                console.log('handleDeliverableToggle type:', typeof handleDeliverableToggle);
+                return (
+                  <GanttChart
+                    data={{
+                      milestones: projectData.milestones,
+                      tasks: projectData.tasks,
+                      startDate: projectData.startDate,
+                      endDate: projectData.endDate,
+                      viewMode: 'month'
+                    }}
+                    onDeliverableToggle={handleDeliverableToggle}
+                    showTasks={true}
+                    interactive={true}
+                  />
+                );
+              })()}
 
               {activeView === 'kpi' && (
                 <KPIDashboard projectData={projectData} />
