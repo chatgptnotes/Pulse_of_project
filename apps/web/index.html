@@ -14,6 +14,64 @@
   </head>
   <body class="font-inter">
     <div id="root"></div>
+
+    <!-- Emergency localStorage cleanup script - runs BEFORE React loads -->
+    <script>
+      (function() {
+        try {
+          console.log('🔍 Pre-React localStorage cleanup starting...');
+
+          // Get all localStorage keys
+          const keys = Object.keys(localStorage);
+          const projectKeys = keys.filter(key => key.startsWith('project-'));
+
+          console.log(`Found ${projectKeys.length} project keys in localStorage`);
+
+          // Validate each project data
+          projectKeys.forEach(key => {
+            if (key.endsWith('-data')) {
+              try {
+                const data = localStorage.getItem(key);
+                if (data) {
+                  const parsed = JSON.parse(data);
+
+                  // Basic validation
+                  if (!parsed || typeof parsed !== 'object') {
+                    console.warn(`⚠️ Removing corrupted key: ${key} (not an object)`);
+                    localStorage.removeItem(key);
+                    return;
+                  }
+
+                  // Check required fields
+                  if (!parsed.milestones || !Array.isArray(parsed.milestones)) {
+                    console.warn(`⚠️ Removing corrupted key: ${key} (missing/invalid milestones)`);
+                    localStorage.removeItem(key);
+                    return;
+                  }
+
+                  if (!parsed.tasks || !Array.isArray(parsed.tasks)) {
+                    console.warn(`⚠️ Removing corrupted key: ${key} (missing/invalid tasks)`);
+                    localStorage.removeItem(key);
+                    return;
+                  }
+
+                  console.log(`✅ Validated ${key}`);
+                }
+              } catch (e) {
+                console.error(`❌ Error validating ${key}:`, e);
+                console.warn(`⚠️ Removing corrupted key: ${key}`);
+                localStorage.removeItem(key);
+              }
+            }
+          });
+
+          console.log('✅ Pre-React localStorage cleanup complete');
+        } catch (error) {
+          console.error('❌ Error during pre-React cleanup:', error);
+        }
+      })();
+    </script>
+
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

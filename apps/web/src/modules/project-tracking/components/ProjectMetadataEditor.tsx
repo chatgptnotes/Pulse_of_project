@@ -14,13 +14,19 @@ const ProjectMetadataEditor: React.FC<ProjectMetadataEditorProps> = ({
   onUpdate,
   isEditMode
 }) => {
+  // Validate projectData to prevent rendering errors
+  if (!projectData || typeof projectData !== 'object') {
+    console.error('Invalid projectData:', projectData);
+    return <div className="bg-red-100 p-4 rounded-lg">Error: Invalid project data</div>;
+  }
+
   const [isEditing, setIsEditing] = useState(false);
   const [editedData, setEditedData] = useState({
-    name: projectData.name,
-    description: projectData.description,
-    client: projectData.client,
-    startDate: projectData.startDate,
-    endDate: projectData.endDate,
+    name: String(projectData.name || ''),
+    description: String(projectData.description || ''),
+    client: String(projectData.client || ''),
+    startDate: projectData.startDate instanceof Date ? projectData.startDate : new Date(projectData.startDate),
+    endDate: projectData.endDate instanceof Date ? projectData.endDate : new Date(projectData.endDate),
     status: projectData.status
   });
 
@@ -62,7 +68,7 @@ const ProjectMetadataEditor: React.FC<ProjectMetadataEditorProps> = ({
               placeholder="Project Name"
             />
           ) : (
-            <h1 className="text-3xl font-bold text-gray-900">{projectData.name}</h1>
+            <h1 className="text-3xl font-bold text-gray-900">{String(projectData.name)}</h1>
           )}
         </div>
 
@@ -109,7 +115,7 @@ const ProjectMetadataEditor: React.FC<ProjectMetadataEditorProps> = ({
             placeholder="Project description"
           />
         ) : (
-          <p className="text-gray-600">{projectData.description}</p>
+          <p className="text-gray-600">{String(projectData.description)}</p>
         )}
       </div>
 
@@ -130,7 +136,7 @@ const ProjectMetadataEditor: React.FC<ProjectMetadataEditorProps> = ({
               placeholder="Client name"
             />
           ) : (
-            <div className="text-sm font-medium text-gray-900">{projectData.client}</div>
+            <div className="text-sm font-medium text-gray-900">{String(projectData.client)}</div>
           )}
         </div>
 
@@ -149,7 +155,9 @@ const ProjectMetadataEditor: React.FC<ProjectMetadataEditorProps> = ({
             />
           ) : (
             <div className="text-sm font-medium text-gray-900">
-              {format(projectData.startDate, 'MMM dd, yyyy')}
+              {projectData.startDate instanceof Date && !isNaN(projectData.startDate.getTime())
+                ? format(projectData.startDate, 'MMM dd, yyyy')
+                : 'Invalid date'}
             </div>
           )}
         </div>
@@ -169,7 +177,9 @@ const ProjectMetadataEditor: React.FC<ProjectMetadataEditorProps> = ({
             />
           ) : (
             <div className="text-sm font-medium text-gray-900">
-              {format(projectData.endDate, 'MMM dd, yyyy')}
+              {projectData.endDate instanceof Date && !isNaN(projectData.endDate.getTime())
+                ? format(projectData.endDate, 'MMM dd, yyyy')
+                : 'Invalid date'}
             </div>
           )}
         </div>

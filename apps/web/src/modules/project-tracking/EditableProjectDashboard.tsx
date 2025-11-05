@@ -44,12 +44,26 @@ const EditableProjectDashboard: React.FC<EditableProjectDashboardProps> = ({ pro
   const [isOnline, setIsOnline] = useState(true);
   const [comments, setComments] = useState<ProjectComment[]>([]);
   const [updates, setUpdates] = useState<ProjectUpdate[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Load saved data on mount
   useEffect(() => {
-    loadProjectData();
-    checkEditLock();
+    const initializeData = async () => {
+      setIsLoading(true);
+      try {
+        loadProjectData();
+        checkEditLock();
+        // Wait a tick for state to update
+        await new Promise(resolve => setTimeout(resolve, 0));
+      } catch (error) {
+        console.error('Error during component initialization:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    initializeData();
 
     // Check online status
     setIsOnline(navigator.onLine);
@@ -77,6 +91,12 @@ const EditableProjectDashboard: React.FC<EditableProjectDashboardProps> = ({ pro
       if (savedData) {
         try {
           const parsedData = JSON.parse(savedData);
+
+          // Additional validation to catch corrupted data
+          if (typeof parsedData !== 'object' || parsedData === null) {
+            console.error('Corrupted data detected: not an object');
+            throw new Error('Invalid data structure');
+          }
 
           // Validate that parsedData has required properties
           if (!parsedData || !parsedData.milestones || !parsedData.tasks) {
@@ -496,6 +516,30 @@ const EditableProjectDashboard: React.FC<EditableProjectDashboardProps> = ({ pro
     navigator.clipboard.writeText(shareUrl);
     toast.success('Project link copied to clipboard');
   };
+
+  // Show loading state while initializing
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading project data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Validate projectData before rendering
+  if (!projectData || !projectData.milestones || !projectData.tasks) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+          <p className="font-bold">Error</p>
+          <p>Invalid project data. Please refresh the page.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <DndProvider backend={HTML5Backend}>

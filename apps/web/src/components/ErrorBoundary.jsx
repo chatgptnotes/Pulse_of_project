@@ -13,10 +13,15 @@ class ErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    // Log the error details
-    console.error('🚨 React Error Boundary caught an error:', error, errorInfo);
+    // Log the error details with more context
+    console.error('🚨 ========================================');
+    console.error('🚨 React Error Boundary caught an error');
+    console.error('🚨 ========================================');
+    console.error('🚨 Error:', error);
+    console.error('🚨 Error message:', error.message);
     console.error('🚨 Error stack:', error.stack);
     console.error('🚨 Component stack:', errorInfo.componentStack);
+    console.error('🚨 ========================================');
     
     // Try to identify the specific component that crashed
     if (errorInfo.componentStack.includes('UploadReportModal')) {

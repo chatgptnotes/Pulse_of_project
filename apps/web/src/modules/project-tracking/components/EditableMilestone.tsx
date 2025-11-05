@@ -298,7 +298,9 @@ const EditableMilestone: React.FC<EditableMilestoneProps> = ({
           {editedMilestone.deliverables.map((deliverable, index) => (
             <div key={index} className="flex items-center gap-2">
               <Check className="w-3 h-3 text-green-500" />
-              <span className="text-sm flex-1">{deliverable}</span>
+              <span className="text-sm flex-1">
+                {typeof deliverable === 'string' ? deliverable : deliverable.text}
+              </span>
               {isEditing && (
                 <button
                   onClick={() => handleRemoveDeliverable(index)}
