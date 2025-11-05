@@ -38,35 +38,24 @@ const BugReport: React.FC<BugReportProps> = ({
   version = 'v1.0.0',
   onBugsUpdate
 }) => {
-  // Map project IDs to database project names
-  // Database constraint only allows 'LinkList' and 'Neuro360'
+  // UPDATED: Now using actual project names for complete bug isolation
+  // Each project gets its own bug list stored with its actual ID
   const getDBProjectName = (projectId: string): string => {
-    const lowerProjectId = (projectId || '').toLowerCase();
-
-    console.log('🔍 Mapping project ID:', projectId, '→', lowerProjectId);
-
-    // Explicit check for linkist-nfc and variations
-    if (projectId === 'linkist-nfc' ||
-        projectId === 'linklist-nfc' ||
-        lowerProjectId.includes('linkist') ||
-        lowerProjectId.includes('linklist')) {
-      console.log('✅ Mapped to: LinkList');
-      return 'LinkList';
+    if (!projectId || projectId === '') {
+      console.warn('⚠️ No project ID provided, using default');
+      return 'linklist';
     }
 
-    // Check for neurosense/neuro360
-    if (projectId === 'neurosense-360' || lowerProjectId.includes('neuro')) {
-      console.log('✅ Mapped to: Neuro360');
-      return 'Neuro360';
-    }
-
-    // Default fallback to LinkList
-    console.log('⚠️ Using fallback: LinkList');
-    return 'LinkList';
+    console.log('✅ Using actual project name:', projectId);
+    return projectId;
   };
 
-  const dbProjectName = getDBProjectName(projectName);
-  console.log('💾 Using database project name:', dbProjectName, 'for component projectName:', projectName);
+  // FIXED: Make dbProjectName reactive to projectName changes using useMemo
+  const dbProjectName = React.useMemo(() => {
+    const dbName = getDBProjectName(projectName);
+    console.log('💾 Database project name recalculated:', dbName, 'for projectName:', projectName);
+    return dbName;
+  }, [projectName]);
 
   const [bugs, setBugs] = useState<Bug[]>([]);
   const [loading, setLoading] = useState(true);
@@ -100,9 +89,10 @@ const BugReport: React.FC<BugReportProps> = ({
   });
 
   // Load bugs from database on component mount
+  // FIXED: Added dbProjectName to dependency array to fix closure issue
   useEffect(() => {
     loadBugs();
-  }, [projectName]);
+  }, [projectName, dbProjectName]);
 
   const loadBugs = async () => {
     try {

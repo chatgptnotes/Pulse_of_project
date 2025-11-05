@@ -54,6 +54,12 @@ const PulseOfProject: React.FC<PulseOfProjectProps> = ({
     setSelectedProject(projectId);
   }, [projectId]);
 
+  // FIXED: Clear bugs when switching projects to prevent cross-contamination
+  useEffect(() => {
+    console.log('🔄 Project switched to:', selectedProject, '- Clearing bugs');
+    setBugs([]); // Clear bugs array when project changes
+  }, [selectedProject]);
+
   // Load project data based on selected project
   useEffect(() => {
     import('./data/projects').then(({ projects }) => {
