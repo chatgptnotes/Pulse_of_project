@@ -67,7 +67,7 @@ export const projects: Project[] = [
     client: '4CSecure',
     status: 'active',
     priority: 1,
-    progress: 58,
+    progress: 99,
     starred: true,
     deadline: '2026-02-10',
     team: 5,

@@ -27,7 +27,8 @@ const ProjectMetadataEditor: React.FC<ProjectMetadataEditorProps> = ({
     client: String(projectData.client || ''),
     startDate: projectData.startDate instanceof Date ? projectData.startDate : new Date(projectData.startDate),
     endDate: projectData.endDate instanceof Date ? projectData.endDate : new Date(projectData.endDate),
-    status: projectData.status
+    status: projectData.status,
+    overallProgress: projectData.overallProgress || 0
   });
 
   const handleSave = () => {
@@ -42,7 +43,8 @@ const ProjectMetadataEditor: React.FC<ProjectMetadataEditorProps> = ({
       client: projectData.client,
       startDate: projectData.startDate,
       endDate: projectData.endDate,
-      status: projectData.status
+      status: projectData.status,
+      overallProgress: projectData.overallProgress || 0
     });
     setIsEditing(false);
   };
@@ -212,15 +214,40 @@ const ProjectMetadataEditor: React.FC<ProjectMetadataEditorProps> = ({
         {/* Progress */}
         <div className="bg-yellow-50 rounded-lg p-3">
           <label className="text-xs text-gray-500 mb-1">Overall Progress</label>
-          <div className="flex items-center gap-2">
-            <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-blue-500 to-purple-500 transition-all duration-500"
-                style={{ width: `${projectData.overallProgress}%` }}
+          {isEditing ? (
+            <div className="flex items-center gap-2">
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={editedData.overallProgress}
+                onChange={(e) => setEditedData({ ...editedData, overallProgress: parseInt(e.target.value) })}
+                className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-500"
               />
+              <input
+                type="number"
+                min="0"
+                max="100"
+                value={editedData.overallProgress}
+                onChange={(e) => {
+                  const value = Math.min(100, Math.max(0, parseInt(e.target.value) || 0));
+                  setEditedData({ ...editedData, overallProgress: value });
+                }}
+                className="w-16 px-2 py-1 text-sm font-bold text-center border rounded-lg focus:ring-2 focus:ring-blue-500"
+              />
+              <span className="text-sm font-bold text-gray-900">%</span>
             </div>
-            <span className="text-sm font-bold text-gray-900">{projectData.overallProgress}%</span>
-          </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-blue-500 to-purple-500 transition-all duration-500"
+                  style={{ width: `${projectData.overallProgress}%` }}
+                />
+              </div>
+              <span className="text-sm font-bold text-gray-900">{projectData.overallProgress}%</span>
+            </div>
+          )}
         </div>
       </div>
 
