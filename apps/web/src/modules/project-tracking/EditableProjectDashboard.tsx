@@ -282,44 +282,49 @@ const EditableProjectDashboard: React.FC<EditableProjectDashboardProps> = ({ pro
     console.log('=== handleDeliverableToggle CALLED IN PARENT ===');
     console.log('Parent received - milestoneId:', milestoneId, 'deliverableId:', deliverableId);
 
-    // Get milestone data before updating
-    let milestoneData: any = null;
+    // Use a variable to capture the updated milestone data
+    let updatedMilestoneData: any = null;
 
     // Use setProjectData with functional update to get latest state
     setProjectData((prevData) => {
       const milestone = prevData.milestones.find(m => m.id === milestoneId);
 
-      if (milestone) {
-        milestoneData = {
-          project_id: prevData.id,
-          name: milestone.name,
-          description: milestone.description,
-          status: milestone.status,
-          start_date: milestone.startDate instanceof Date ? milestone.startDate.toISOString() : new Date(milestone.startDate).toISOString(),
-          end_date: milestone.endDate instanceof Date ? milestone.endDate.toISOString() : new Date(milestone.endDate).toISOString(),
-          progress: milestone.progress,
-          deliverables: milestone.deliverables,
-          assigned_to: milestone.assignedTo || [],
-          dependencies: milestone.dependencies || [],
-          order: milestone.order,
-          color: milestone.color || '#4F46E5'
-        };
+      if (!milestone) {
+        console.error('Milestone not found:', milestoneId);
+        return prevData;
       }
 
-      const updatedMilestones = prevData.milestones.map(milestone => {
-        if (milestone.id === milestoneId) {
-          const updatedDeliverables = milestone.deliverables.map(deliverable =>
-            deliverable.id === deliverableId
-              ? { ...deliverable, completed: !deliverable.completed }
-              : deliverable
-          );
-          console.log('Updated deliverables for milestone:', updatedDeliverables);
-          return { ...milestone, deliverables: updatedDeliverables };
-        }
-        return milestone;
-      });
+      const updatedDeliverables = milestone.deliverables.map(deliverable =>
+        deliverable.id === deliverableId
+          ? { ...deliverable, completed: !deliverable.completed }
+          : deliverable
+      );
 
+      const updatedMilestone = { ...milestone, deliverables: updatedDeliverables };
+
+      // Capture the updated milestone data for database save
+      updatedMilestoneData = {
+        project_id: prevData.id,
+        name: updatedMilestone.name,
+        description: updatedMilestone.description,
+        status: updatedMilestone.status,
+        start_date: updatedMilestone.startDate instanceof Date ? updatedMilestone.startDate.toISOString() : new Date(updatedMilestone.startDate).toISOString(),
+        end_date: updatedMilestone.endDate instanceof Date ? updatedMilestone.endDate.toISOString() : new Date(updatedMilestone.endDate).toISOString(),
+        progress: updatedMilestone.progress,
+        deliverables: updatedDeliverables, // Use the NEW updated deliverables
+        assigned_to: updatedMilestone.assignedTo || [],
+        dependencies: updatedMilestone.dependencies || [],
+        order: updatedMilestone.order,
+        color: updatedMilestone.color || '#4F46E5'
+      };
+
+      const updatedMilestones = prevData.milestones.map(m =>
+        m.id === milestoneId ? updatedMilestone : m
+      );
+
+      console.log('✅ Updated deliverables for milestone:', updatedDeliverables);
       console.log('Setting updated project data...');
+
       return {
         ...prevData,
         milestones: updatedMilestones
@@ -329,13 +334,16 @@ const EditableProjectDashboard: React.FC<EditableProjectDashboardProps> = ({ pro
     setHasUnsavedChanges(true);
     console.log('Local state updated!');
 
-    // Save to Supabase with milestone data
+    // Save to Supabase with the UPDATED milestone data
     try {
-      const success = await ProjectTrackingService.toggleDeliverable(milestoneId, deliverableId, milestoneData);
-      if (success) {
-        toast.success('Deliverable status saved to database');
-      } else {
-        toast.error('Failed to save to database (saved locally)');
+      if (updatedMilestoneData) {
+        console.log('💾 Saving to database:', updatedMilestoneData.deliverables);
+        const success = await ProjectTrackingService.toggleDeliverable(milestoneId, deliverableId, updatedMilestoneData);
+        if (success) {
+          toast.success('Deliverable status saved to database');
+        } else {
+          toast.error('Failed to save to database (saved locally)');
+        }
       }
     } catch (error) {
       console.error('Error saving deliverable to Supabase:', error);

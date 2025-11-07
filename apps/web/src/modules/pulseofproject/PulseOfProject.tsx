@@ -118,10 +118,10 @@ const PulseOfProject: React.FC<PulseOfProjectProps> = ({
           team: Array.from({ length: project.team }, (_, i) => ({
             id: String(i + 1),
             name: `Team Member ${i + 1}`,
-            email: `member${i + 1}@${project.client.toLowerCase().replace(/\s+/g, '')}.com`,
-            role: 'Developer',
-            allocation: 100
-          }))
+              email: `member${i + 1}@${project.client.toLowerCase().replace(/\s+/g, '')}.com`,
+              role: 'Developer',
+              allocation: 100
+            }))
         });
       }
     });
@@ -237,22 +237,47 @@ const PulseOfProject: React.FC<PulseOfProjectProps> = ({
     console.log('=== handleDeliverableToggle CALLED IN PulseOfProject ===');
     console.log('milestoneId:', milestoneId, 'deliverableId:', deliverableId);
 
-    // Get the milestone data before updating
-    const milestone = projectData.milestones.find(m => m.id === milestoneId);
+    // Use a variable to capture the updated milestone data
+    let updatedMilestoneData: any = null;
 
-    // Update local state with functional update
+    // Update local state with functional update and capture the updated milestone
     setProjectData((prevData) => {
-      const updatedMilestones = prevData.milestones.map(milestone => {
-        if (milestone.id === milestoneId) {
-          const updatedDeliverables = milestone.deliverables.map(deliverable =>
-            deliverable.id === deliverableId
-              ? { ...deliverable, completed: !deliverable.completed }
-              : deliverable
-          );
-          return { ...milestone, deliverables: updatedDeliverables };
-        }
-        return milestone;
-      });
+      const milestone = prevData.milestones.find(m => m.id === milestoneId);
+
+      if (!milestone) {
+        console.error('Milestone not found:', milestoneId);
+        return prevData;
+      }
+
+      const updatedDeliverables = milestone.deliverables.map(deliverable =>
+        deliverable.id === deliverableId
+          ? { ...deliverable, completed: !deliverable.completed }
+          : deliverable
+      );
+
+      const updatedMilestone = { ...milestone, deliverables: updatedDeliverables };
+
+      // Capture the updated milestone data for database save
+      updatedMilestoneData = {
+        project_id: prevData.id,
+        name: updatedMilestone.name,
+        description: updatedMilestone.description,
+        status: updatedMilestone.status,
+        start_date: updatedMilestone.startDate instanceof Date ? updatedMilestone.startDate.toISOString() : new Date(updatedMilestone.startDate).toISOString(),
+        end_date: updatedMilestone.endDate instanceof Date ? updatedMilestone.endDate.toISOString() : new Date(updatedMilestone.endDate).toISOString(),
+        progress: updatedMilestone.progress,
+        deliverables: updatedDeliverables, // Use the NEW updated deliverables
+        assigned_to: updatedMilestone.assignedTo || [],
+        dependencies: updatedMilestone.dependencies || [],
+        order: updatedMilestone.order,
+        color: updatedMilestone.color || '#4F46E5'
+      };
+
+      const updatedMilestones = prevData.milestones.map(m =>
+        m.id === milestoneId ? updatedMilestone : m
+      );
+
+      console.log('✅ State updated with new deliverables:', updatedDeliverables);
 
       return {
         ...prevData,
@@ -260,34 +285,22 @@ const PulseOfProject: React.FC<PulseOfProjectProps> = ({
       };
     });
 
-    // Save to Supabase with milestone data
+    // Save to Supabase with the UPDATED milestone data
     try {
-      const milestoneData = milestone ? {
-        project_id: projectData.id,
-        name: milestone.name,
-        description: milestone.description,
-        status: milestone.status,
-        start_date: milestone.startDate instanceof Date ? milestone.startDate.toISOString() : new Date(milestone.startDate).toISOString(),
-        end_date: milestone.endDate instanceof Date ? milestone.endDate.toISOString() : new Date(milestone.endDate).toISOString(),
-        progress: milestone.progress,
-        deliverables: milestone.deliverables,
-        assigned_to: milestone.assignedTo || [],
-        dependencies: milestone.dependencies || [],
-        order: milestone.order,
-        color: milestone.color || '#4F46E5'
-      } : undefined;
-
-      const success = await ProjectTrackingService.toggleDeliverable(milestoneId, deliverableId, milestoneData);
-      if (success) {
-        toast.success('Deliverable status saved to database');
-      } else {
-        toast.error('Failed to save to database (saved locally)');
+      if (updatedMilestoneData) {
+        console.log('💾 Saving to database:', updatedMilestoneData.deliverables);
+        const success = await ProjectTrackingService.toggleDeliverable(milestoneId, deliverableId, updatedMilestoneData);
+        if (success) {
+          toast.success('Deliverable status saved to database');
+        } else {
+          toast.error('Failed to save to database (saved locally)');
+        }
       }
     } catch (error) {
       console.error('Error saving deliverable to Supabase:', error);
       toast.error('Failed to save to database (saved locally)');
     }
-  }, [projectData]);
+  }, []); // Empty deps - uses functional updates only
 
   // Auto-sync on interval
   useEffect(() => {
