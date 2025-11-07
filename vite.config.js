@@ -11,10 +11,6 @@ export default defineConfig(({ mode }) => {
   // Set the third parameter to '' to load all env regardless of the `VITE_` prefix.
   const env = loadEnv(mode, __dirname, '')
 
-  console.log('🔧 Vite Config - Mode:', mode)
-  console.log('🔧 Vite Config - __dirname:', __dirname)
-  console.log('🔧 Vite Config - VITE_BYPASS_AUTH:', env.VITE_BYPASS_AUTH)
-
   return {
     plugins: [react()],
     css: {
@@ -24,6 +20,12 @@ export default defineConfig(({ mode }) => {
     publicDir: 'apps/web/public',
     // Explicitly set envDir to repository root so .env files are loaded correctly
     envDir: __dirname,
+    // Explicitly define environment variables to ensure they're injected into the bundle
+    define: {
+      'import.meta.env.VITE_BYPASS_AUTH': JSON.stringify('true'),
+      'import.meta.env.VITE_BUGTRACKING_SUPABASE_URL': JSON.stringify(env.VITE_BUGTRACKING_SUPABASE_URL || 'https://winhdjtlwhgdoinfrxch.supabase.co'),
+      'import.meta.env.VITE_BUGTRACKING_SUPABASE_ANON_KEY': JSON.stringify(env.VITE_BUGTRACKING_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndpbmhkanRsd2hnZG9pbmZyeGNoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjEzNTkwNTQsImV4cCI6MjA3NjkzNTA1NH0.IKxXiHRZiJI4UXfbAiYThXcsvdx04vqx0ejQs8LhkGU'),
+    },
     server: {
       port: 3000,
       open: true,
