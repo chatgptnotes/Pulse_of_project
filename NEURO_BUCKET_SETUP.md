@@ -48,6 +48,7 @@ USING (bucket_id = 'neuro_bucket');
 
 ### 3. Test the Upload
 
+
 1. Go to your Project Documents section in the app
 2. Click "Upload Document" button
 3. Select a file (PDF, image, PPT, etc.)

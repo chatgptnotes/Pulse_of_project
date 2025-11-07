@@ -283,8 +283,9 @@ const EditableProjectDashboard: React.FC<EditableProjectDashboardProps> = ({ pro
     console.log('=== handleDeliverableToggle CALLED IN PARENT ===');
     console.log('Parent received - milestoneId:', milestoneId, 'deliverableId:', deliverableId);
 
-    // Use a variable to capture the updated milestone data
+    // Use a variable to capture the updated milestone data AND full project data
     let updatedMilestoneData: any = null;
+    let newProjectData: ProjectData | null = null;
 
     // Use setProjectData with functional update to get latest state
     setProjectData((prevData) => {
@@ -326,14 +327,28 @@ const EditableProjectDashboard: React.FC<EditableProjectDashboardProps> = ({ pro
       console.log('✅ Updated deliverables for milestone:', updatedDeliverables);
       console.log('Setting updated project data...');
 
-      return {
+      // Capture the new project data for localStorage save
+      newProjectData = {
         ...prevData,
         milestones: updatedMilestones
       };
+
+      return newProjectData;
     });
 
     setHasUnsavedChanges(true);
     console.log('Local state updated!');
+
+    // CRITICAL FIX: Save to localStorage with the captured updated data
+    if (newProjectData) {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(newProjectData));
+        console.log('💾 Saved to localStorage for persistence');
+        console.log('Saved deliverables:', newProjectData.milestones.find(m => m.id === milestoneId)?.deliverables);
+      } catch (err) {
+        console.error('Failed to save to localStorage:', err);
+      }
+    }
 
     // Save to Supabase with the UPDATED milestone data
     try {
@@ -341,7 +356,7 @@ const EditableProjectDashboard: React.FC<EditableProjectDashboardProps> = ({ pro
         console.log('💾 Saving to database:', updatedMilestoneData.deliverables);
         const success = await ProjectTrackingService.toggleDeliverable(milestoneId, deliverableId, updatedMilestoneData);
         if (success) {
-          toast.success('Deliverable status saved to database');
+          toast.success('Deliverable status saved');
         } else {
           toast.error('Failed to save to database (saved locally)');
         }
@@ -350,7 +365,7 @@ const EditableProjectDashboard: React.FC<EditableProjectDashboardProps> = ({ pro
       console.error('Error saving deliverable to Supabase:', error);
       toast.error('Failed to save to database (saved locally)');
     }
-  }, []); // Empty deps - this callback never changes, uses functional updates
+  }, [STORAGE_KEY]); // Include STORAGE_KEY in deps
 
   const handleAddTask = (task: Omit<ProjectTask, 'id'>) => {
     const newTask: ProjectTask = {
@@ -928,8 +943,14 @@ const EditableProjectDashboard: React.FC<EditableProjectDashboardProps> = ({ pro
                 console.log('=== RENDERING GanttChart in EditableProjectDashboard ===');
                 console.log('Passing handleDeliverableToggle:', handleDeliverableToggle);
                 console.log('handleDeliverableToggle type:', typeof handleDeliverableToggle);
+                // Create a stable key based on milestone deliverables state to force re-render
+                const dataKey = JSON.stringify(projectData.milestones.map(m => ({
+                  id: m.id,
+                  deliverables: m.deliverables.map(d => ({ id: d.id, completed: d.completed }))
+                })));
                 return (
                   <GanttChart
+                    key={dataKey}
                     data={{
                       milestones: projectData.milestones,
                       tasks: projectData.tasks,

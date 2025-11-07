@@ -23,6 +23,8 @@ export interface DocumentMetadata {
   description?: string;
   tags?: string[];
   is_public?: boolean;
+  external_url?: string; // For Google Docs, Sheets, or other website links
+  is_external_link?: boolean; // Flag to indicate this is an external link, not an uploaded file
 }
 
 export interface UploadResult {
@@ -175,6 +177,92 @@ class DocumentStorageService {
   }
 
   /**
+   * Add an external link (Google Docs, Sheets, or any website)
+   */
+  async addExternalLink(
+    url: string,
+    projectId: string,
+    uploadedBy: string,
+    options: {
+      title: string;
+      description: string;
+      tags?: string[];
+      isPublic?: boolean;
+    }
+  ): Promise<UploadResult> {
+    try {
+      // Validate URL
+      try {
+        new URL(url);
+      } catch {
+        return {
+          success: false,
+          error: 'Invalid URL provided'
+        };
+      }
+
+      // Determine link type from URL
+      let linkType = 'link';
+      if (url.includes('docs.google.com/spreadsheets')) {
+        linkType = 'google-sheets';
+      } else if (url.includes('docs.google.com/document')) {
+        linkType = 'google-docs';
+      } else if (url.includes('docs.google.com/presentation')) {
+        linkType = 'google-slides';
+      } else if (url.includes('drive.google.com')) {
+        linkType = 'google-drive';
+      }
+
+      console.log('🔗 Adding external link:', url, 'Type:', linkType);
+
+      // Create metadata record in database (no file upload needed)
+      const metadata: Omit<DocumentMetadata, 'id'> = {
+        project_id: projectId,
+        filename: options.title,
+        file_path: url, // Store URL in file_path for external links
+        file_size: 0, // No file size for links
+        file_type: linkType,
+        mime_type: 'text/uri-list',
+        uploaded_by: uploadedBy,
+        description: options.description,
+        tags: options.tags || [],
+        is_public: options.isPublic || false,
+        external_url: url,
+        is_external_link: true
+      };
+
+      const { data: documentData, error: dbError } = await this.supabase
+        .from('project_documents')
+        .insert(metadata)
+        .select()
+        .single();
+
+      if (dbError) {
+        console.error('❌ Database error:', dbError);
+        return {
+          success: false,
+          error: dbError.message
+        };
+      }
+
+      console.log('✅ External link saved to database');
+
+      return {
+        success: true,
+        document: documentData as DocumentMetadata,
+        publicUrl: url
+      };
+
+    } catch (error) {
+      console.error('❌ Failed to add external link:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error occurred'
+      };
+    }
+  }
+
+  /**
    * Download a file from Supabase Storage
    */
   async downloadDocument(filePath: string): Promise<DownloadResult> {
@@ -252,7 +340,7 @@ class DocumentStorageService {
       // Get document metadata first
       const { data: document, error: fetchError } = await this.supabase
         .from('project_documents')
-        .select('file_path')
+        .select('file_path, is_external_link')
         .eq('id', documentId)
         .single();
 
@@ -261,14 +349,16 @@ class DocumentStorageService {
         return false;
       }
 
-      // Delete from storage
-      const { error: storageError } = await this.supabase.storage
-        .from(BUCKET_NAME)
-        .remove([document.file_path]);
+      // Only delete from storage if it's not an external link
+      if (!document.is_external_link) {
+        const { error: storageError } = await this.supabase.storage
+          .from(BUCKET_NAME)
+          .remove([document.file_path]);
 
-      if (storageError) {
-        console.error('❌ Storage deletion error:', storageError);
-        // Continue to delete database record even if storage deletion fails
+        if (storageError) {
+          console.error('❌ Storage deletion error:', storageError);
+          // Continue to delete database record even if storage deletion fails
+        }
       }
 
       // Delete from database
