@@ -216,9 +216,12 @@ class BugTrackingService {
         const bugReport = {
           ...bugData,
           sno: nextSno,
+          type: bugData.type || 'bug', // bug, suggestion, enhancement, announcement, feature_request
           date: bugData.date || new Date().toISOString().split('T')[0],
           status: bugData.status || 'Open',
           testing_status: bugData.testing_status || 'Pending',
+          reported_by: bugData.reported_by || null,
+          assigned_to: bugData.assigned_to || null,
           created_at: new Date().toISOString()
         };
 
@@ -230,9 +233,12 @@ class BugTrackingService {
         const bugReport = {
           ...bugData,
           sno: nextSno,
+          type: bugData.type || 'bug', // bug, suggestion, enhancement, announcement, feature_request
           date: bugData.date || new Date().toISOString().split('T')[0],
           status: bugData.status || 'Open',
           testing_status: bugData.testing_status || 'Pending',
+          reported_by: bugData.reported_by || null,
+          assigned_to: bugData.assigned_to || null,
           created_at: new Date().toISOString()
         };
 
@@ -310,6 +316,67 @@ class BugTrackingService {
     }
   }
 
+  // Get issues by type (bug, suggestion, enhancement, announcement, feature_request)
+  async getIssuesByType(type, projectName = null) {
+    try {
+      let query = this.supabase
+        .from('bug_reports')
+        .select(`
+          *,
+          reporter:team_members!bug_reports_reported_by_fkey(id, name, email, role, team_type),
+          assignee:team_members!bug_reports_assigned_to_fkey(id, name, email, role, team_type)
+        `)
+        .eq('type', type)
+        .order('created_at', { ascending: false });
+
+      if (projectName) {
+        query = query.eq('project_name', projectName);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error('❌ Error fetching issues by type:', error);
+        return [];
+      }
+
+      return data || [];
+    } catch (error) {
+      console.error('❌ Error in getIssuesByType:', error);
+      return [];
+    }
+  }
+
+  // Get issues with team member information
+  async getIssuesWithTeamMembers(projectName = null) {
+    try {
+      let query = this.supabase
+        .from('bug_reports')
+        .select(`
+          *,
+          reporter:team_members!bug_reports_reported_by_fkey(id, name, email, role, team_type),
+          assignee:team_members!bug_reports_assigned_to_fkey(id, name, email, role, team_type)
+        `)
+        .order('created_at', { ascending: false });
+
+      if (projectName) {
+        query = query.eq('project_name', projectName);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error('❌ Error fetching issues with team members:', error);
+        return [];
+      }
+
+      return data || [];
+    } catch (error) {
+      console.error('❌ Error in getIssuesWithTeamMembers:', error);
+      return [];
+    }
+  }
+
   async getBugReportsBySeverity(severity, projectName = null) {
     try {
       let query = this.supabase
@@ -322,7 +389,7 @@ class BugTrackingService {
         query = query.eq('project_name', projectName);
       }
 
-      const { data, error } = await query;
+      const { data, error} = await query;
 
       if (error) {
         console.error('❌ Error fetching bug reports by severity:', error);

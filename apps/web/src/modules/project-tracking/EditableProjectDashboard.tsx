@@ -8,6 +8,7 @@ import KPIDashboard from './components/KPIDashboard';
 import ClientCollaboration from './components/ClientCollaboration';
 import ProjectMetadataEditor from './components/ProjectMetadataEditor';
 import ProjectDocuments from './components/ProjectDocuments';
+import TeamManagement from './components/TeamManagement';
 import { projectOverview as defaultProjectData } from './data/sample-project-milestones';
 import { ProjectData, ProjectComment, ProjectUpdate, ProjectMilestone, ProjectTask } from './types';
 import { ProjectTrackingService } from './services/projectTrackingService';
@@ -35,7 +36,7 @@ const EditableProjectDashboard: React.FC<EditableProjectDashboardProps> = ({ pro
   const STORAGE_KEY = `project-${projectId}-data`;
   const LAST_SAVED_KEY = `project-${projectId}-last-saved`;
   const EDIT_LOCK_KEY = `project-${projectId}-edit-lock`;
-  const [activeView, setActiveView] = useState<'overview' | 'gantt' | 'kpi' | 'collaboration' | 'documents'>('overview');
+  const [activeView, setActiveView] = useState<'overview' | 'gantt' | 'kpi' | 'collaboration' | 'documents' | 'team'>('overview');
   const [isEditMode, setIsEditMode] = useState(false);
   const [projectData, setProjectData] = useState<ProjectData>(defaultProjectData);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -822,7 +823,7 @@ const EditableProjectDashboard: React.FC<EditableProjectDashboardProps> = ({ pro
 
             {/* View Tabs */}
             <div className="flex gap-2 mt-6 border-t pt-4">
-              {(['overview', 'gantt', 'kpi', 'collaboration', 'documents'] as const).map(view => (
+              {(['overview', 'gantt', 'kpi', 'collaboration', 'documents', 'team'] as const).map(view => (
                 <button
                   key={view}
                   onClick={() => setActiveView(view)}
@@ -970,6 +971,12 @@ const EditableProjectDashboard: React.FC<EditableProjectDashboardProps> = ({ pro
                 <ProjectDocuments
                   projectId={projectData.id}
                   isEditMode={isEditMode}
+                />
+              )}
+
+              {activeView === 'team' && (
+                <TeamManagement
+                  projectName={projectData.id}
                 />
               )}
             </motion.div>

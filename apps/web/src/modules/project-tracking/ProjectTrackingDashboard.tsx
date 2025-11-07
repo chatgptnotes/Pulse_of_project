@@ -4,18 +4,19 @@ import { HTML5Backend } from 'react-dnd-html5-backend';
 import GanttChart from './components/GanttChart';
 import KPIDashboard from './components/KPIDashboard';
 import ClientCollaboration from './components/ClientCollaboration';
+import TeamManagement from './components/TeamManagement';
 import { projectOverview } from './data/sample-project-milestones';
 import { ProjectComment, ProjectUpdate, ProjectMilestone, MilestoneKPI } from './types';
 import { ProjectTrackingService } from './services/projectTrackingService';
 import {
   BarChart3, MessageSquare, Target, FileText, Settings,
-  Download, Share2, RefreshCw, Filter, Calendar
+  Download, Share2, RefreshCw, Filter, Calendar, Users
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 
 const ProjectTrackingDashboard: React.FC = () => {
-  const [activeView, setActiveView] = useState<'gantt' | 'kpi' | 'collaboration'>('gantt');
+  const [activeView, setActiveView] = useState<'gantt' | 'kpi' | 'collaboration' | 'team'>('gantt');
   const [projectData, setProjectData] = useState(projectOverview);
   const [comments, setComments] = useState<ProjectComment[]>([
     {
@@ -208,6 +209,11 @@ const ProjectTrackingDashboard: React.FC = () => {
       icon: MessageSquare,
       title: 'Collaboration',
       description: 'Communicate with team and clients'
+    },
+    team: {
+      icon: Users,
+      title: 'Team Management',
+      description: 'Manage client and development teams'
     }
   };
 
@@ -262,7 +268,7 @@ const ProjectTrackingDashboard: React.FC = () => {
             </div>
 
             {/* View Selector */}
-            <div className="grid grid-cols-3 gap-4 mt-6">
+            <div className="grid grid-cols-4 gap-4 mt-6">
               {(Object.keys(viewConfig) as Array<keyof typeof viewConfig>).map(view => {
                 const config = viewConfig[view];
                 const Icon = config.icon;
@@ -337,6 +343,12 @@ const ProjectTrackingDashboard: React.FC = () => {
                 currentUserId="current-user"
                 currentUserName="Current User"
                 currentUserRole="team"
+              />
+            )}
+
+            {activeView === 'team' && (
+              <TeamManagement
+                projectName={projectData.id}
               />
             )}
           </motion.div>

@@ -3,14 +3,24 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Bug, AlertTriangle, AlertCircle, Info, Plus, Download, Upload,
   Trash2, Edit2, Check, X, Image as ImageIcon, Calendar, Filter,
-  ChevronDown, ChevronUp, ExternalLink, Save, FileText
+  ChevronDown, ChevronUp, ExternalLink, Save, FileText, Lightbulb, Wrench, Megaphone, Sparkles
 } from 'lucide-react';
 import bugTrackingService from '../../../services/bugTrackingService';
+import teamMemberService from '../../../services/teamMemberService';
+
+interface TeamMember {
+  id: string;
+  name: string;
+  email?: string;
+  role?: string;
+  team_type: 'client' | 'development';
+}
 
 interface Bug {
   id: string;
   sno: number;
   date: string;
+  type: 'bug' | 'suggestion' | 'enhancement' | 'announcement' | 'feature_request';
   module: string;
   screen: string;
   snag: string;
@@ -19,8 +29,10 @@ interface Bug {
   comments: string;
   status: 'Open' | 'In Progress' | 'Testing' | 'Verified' | 'Closed' | 'Reopened';
   testing_status: 'Pending' | 'Pass' | 'Fail' | 'Blocked';
-  assigned_to?: string;
-  reported_by?: string;
+  assigned_to?: string; // UUID
+  reported_by?: string; // UUID
+  reporter?: TeamMember; // Populated from join
+  assignee?: TeamMember; // Populated from join
   project_name?: string;
   project_version?: string;
   created_at?: string;
@@ -60,6 +72,7 @@ const BugReport: React.FC<BugReportProps> = ({
   const [bugs, setBugs] = useState<Bug[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingBug, setEditingBug] = useState<string | null>(null);
@@ -68,6 +81,8 @@ const BugReport: React.FC<BugReportProps> = ({
   const [filterSeverity, setFilterSeverity] = useState<string>('all');
   const [filterModule, setFilterModule] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterType, setFilterType] = useState<string>('all');
+  const [filterReporter, setFilterReporter] = useState<string>('all');
   const [expandedView, setExpandedView] = useState(true);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isImageModalOpen, setIsImageModalOpen] = useState(false);
@@ -76,6 +91,7 @@ const BugReport: React.FC<BugReportProps> = ({
 
   const [newBug, setNewBug] = useState<Partial<Bug>>({
     date: new Date().toISOString().split('T')[0],
+    type: 'bug',
     module: 'E-commerce',
     screen: '',
     snag: '',
@@ -85,14 +101,30 @@ const BugReport: React.FC<BugReportProps> = ({
     testing_status: 'Pending',
     project_name: projectName,
     project_version: version,
-    reported_by: 'Current User'
+    reported_by: undefined,
+    assigned_to: undefined
   });
+
+  // Load team members on mount
+  useEffect(() => {
+    loadTeamMembers();
+  }, [dbProjectName]);
 
   // Load bugs from database on component mount
   // FIXED: Added dbProjectName to dependency array to fix closure issue
   useEffect(() => {
     loadBugs();
   }, [projectName, dbProjectName]);
+
+  const loadTeamMembers = async () => {
+    try {
+      const members = await teamMemberService.getAllMembers(dbProjectName);
+      setTeamMembers(members);
+      console.log('✅ Loaded', members.length, 'team members');
+    } catch (error) {
+      console.error('❌ Error loading team members:', error);
+    }
+  };
 
   const loadBugs = async () => {
     try {
@@ -106,9 +138,10 @@ const BugReport: React.FC<BugReportProps> = ({
         return;
       }
 
-      // Use the database project name for filtering bugs
+      // FIXED: Use simple getBugReports instead of getIssuesWithTeamMembers
+      // The foreign key relationships don't exist yet, so we fetch bugs without joins
       const fetchedBugs = await bugTrackingService.getBugReports(dbProjectName);
-      console.log(`✅ Loaded ${fetchedBugs.length} bugs for ${projectName} (${dbProjectName})`);
+      console.log(`✅ Loaded ${fetchedBugs.length} issues for ${projectName} (${dbProjectName})`);
       setBugs(fetchedBugs);
       onBugsUpdate?.(fetchedBugs);
     } catch (error) {
@@ -121,6 +154,36 @@ const BugReport: React.FC<BugReportProps> = ({
   const modules = ['E-commerce', 'Profile Builder', 'Profile Viewer', 'Authentication', 'Dashboard', 'Settings'];
   const statuses = ['Open', 'In Progress', 'Testing', 'Verified', 'Closed', 'Reopened'];
   const testingStatuses = ['Pending', 'Pass', 'Fail', 'Blocked'];
+
+  const issueTypes = [
+    { value: 'bug', label: 'Bug', icon: Bug, color: 'red' },
+    { value: 'suggestion', label: 'Suggestion', icon: Lightbulb, color: 'blue' },
+    { value: 'enhancement', label: 'Enhancement', icon: Wrench, color: 'green' },
+    { value: 'announcement', label: 'Announcement', icon: Megaphone, color: 'orange' },
+    { value: 'feature_request', label: 'Feature Request', icon: Sparkles, color: 'purple' }
+  ];
+
+  const getTypeConfig = (type: string) => {
+    return issueTypes.find(t => t.value === type) || issueTypes[0];
+  };
+
+  const getTypeColor = (type: string) => {
+    const config = getTypeConfig(type);
+    const colors = {
+      red: 'bg-red-100 text-red-700 border-red-300',
+      blue: 'bg-blue-100 text-blue-700 border-blue-300',
+      green: 'bg-green-100 text-green-700 border-green-300',
+      orange: 'bg-orange-100 text-orange-700 border-orange-300',
+      purple: 'bg-purple-100 text-purple-700 border-purple-300'
+    };
+    return colors[config.color as keyof typeof colors] || colors.red;
+  };
+
+  const getTypeIcon = (type: string) => {
+    const config = getTypeConfig(type);
+    const Icon = config.icon;
+    return <Icon className="w-4 h-4" />;
+  };
 
   const getSeverityColor = (severity: string) => {
     switch (severity) {
@@ -185,6 +248,7 @@ const BugReport: React.FC<BugReportProps> = ({
         project_name: dbProjectName,
         project_version: version,
         date: newBug.date || new Date().toISOString().split('T')[0],
+        type: newBug.type || 'bug',
         module: newBug.module || 'E-commerce',
         screen: newBug.screen || '',
         snag: newBug.snag || '',
@@ -192,11 +256,18 @@ const BugReport: React.FC<BugReportProps> = ({
         image_url: newBug.image_url,
         comments: newBug.comments || '',
         status: newBug.status || 'Open',
-        testing_status: newBug.testing_status || 'Pending',
-        reported_by: 'Current User'
+        testing_status: newBug.testing_status || 'Pending'
       };
 
-      console.log('📝 Bug data to save:', { project_name: bugData.project_name, snag: bugData.snag });
+      // Only add team member fields if they have values
+      if (newBug.reported_by) {
+        bugData.reported_by = newBug.reported_by;
+      }
+      if (newBug.assigned_to) {
+        bugData.assigned_to = newBug.assigned_to;
+      }
+
+      console.log('📝 Bug data to save:', bugData);
 
       const savedBug = await bugTrackingService.createBugReport(bugData);
 
@@ -206,6 +277,7 @@ const BugReport: React.FC<BugReportProps> = ({
       // Reset form
       setNewBug({
         date: new Date().toISOString().split('T')[0],
+        type: 'bug',
         module: 'E-commerce',
         screen: '',
         snag: '',
@@ -215,12 +287,14 @@ const BugReport: React.FC<BugReportProps> = ({
         testing_status: 'Pending',
         project_name: projectName,
         project_version: version,
-        reported_by: 'Current User'
+        reported_by: undefined,
+        assigned_to: undefined
       });
       setShowAddForm(false);
     } catch (error) {
-      console.error('Error saving bug:', error);
-      alert('Failed to save bug report. Please try again.');
+      console.error('❌ Error saving bug:', error);
+      const errorMessage = error?.message || 'Unknown error occurred';
+      alert(`Failed to save bug report: ${errorMessage}\n\nPlease check the browser console for more details.`);
     } finally {
       setSaving(false);
     }
@@ -348,6 +422,8 @@ const BugReport: React.FC<BugReportProps> = ({
     if (filterSeverity !== 'all' && bug.severity !== filterSeverity) return false;
     if (filterModule !== 'all' && bug.module !== filterModule) return false;
     if (filterStatus !== 'all' && bug.status !== filterStatus) return false;
+    if (filterType !== 'all' && bug.type !== filterType) return false;
+    if (filterReporter !== 'all' && bug.reported_by !== filterReporter) return false;
     return true;
   });
 
@@ -369,9 +445,9 @@ const BugReport: React.FC<BugReportProps> = ({
           <div className="flex items-center gap-3">
             <Bug className="w-8 h-8 text-white" />
             <div>
-              <h2 className="text-2xl font-bold text-white">Bug Report & Testing Tracker</h2>
+              <h2 className="text-2xl font-bold text-white">Issues & Suggestions</h2>
               <p className="text-red-100">
-                {projectName} - {version} | Testing Deadline: Tomorrow Morning
+                {projectName} - {version} | Track bugs, suggestions, enhancements & more
               </p>
             </div>
           </div>
@@ -461,15 +537,44 @@ const BugReport: React.FC<BugReportProps> = ({
                       <option key={status} value={status}>{status}</option>
                     ))}
                   </select>
+
+                  <select
+                    value={filterType}
+                    onChange={(e) => setFilterType(e.target.value)}
+                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+                  >
+                    <option value="all">All Types</option>
+                    {issueTypes.map(type => (
+                      <option key={type.value} value={type.value}>{type.label}</option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={filterReporter}
+                    onChange={(e) => setFilterReporter(e.target.value)}
+                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+                  >
+                    <option value="all">All Reporters</option>
+                    <optgroup label="Client Team">
+                      {teamMembers.filter(m => m.team_type === 'client').map(member => (
+                        <option key={member.id} value={member.id}>{member.name}</option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Development Team">
+                      {teamMembers.filter(m => m.team_type === 'development').map(member => (
+                        <option key={member.id} value={member.id}>{member.name}</option>
+                      ))}
+                    </optgroup>
+                  </select>
                 </div>
 
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setShowAddForm(true)}
-                    className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                   >
                     <Plus className="w-4 h-4" />
-                    Report Bug
+                    Add Issue
                   </button>
 
                   <button
@@ -518,21 +623,76 @@ const BugReport: React.FC<BugReportProps> = ({
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
                   exit={{ opacity: 0, height: 0 }}
-                  className="p-4 bg-red-50 border-b border-red-200"
+                  className="p-4 bg-blue-50 border-b border-blue-200"
                 >
-                  <h3 className="text-lg font-semibold mb-4">Report New Bug</h3>
+                  <h3 className="text-lg font-semibold mb-4">Add New Issue</h3>
+
+                  {/* First row: Type, Reported By, Assigned To */}
+                  <div className="grid grid-cols-3 gap-4 mb-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Type *</label>
+                      <select
+                        value={newBug.type}
+                        onChange={(e) => setNewBug({ ...newBug, type: e.target.value as Bug['type'] })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        {issueTypes.map(type => (
+                          <option key={type.value} value={type.value}>{type.label}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Reported By</label>
+                      <select
+                        value={newBug.reported_by || ''}
+                        onChange={(e) => setNewBug({ ...newBug, reported_by: e.target.value || undefined })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">Select Reporter</option>
+                        <optgroup label="Client Team">
+                          {teamMembers.filter(m => m.team_type === 'client').map(member => (
+                            <option key={member.id} value={member.id}>{member.name} - {member.role}</option>
+                          ))}
+                        </optgroup>
+                        <optgroup label="Development Team">
+                          {teamMembers.filter(m => m.team_type === 'development').map(member => (
+                            <option key={member.id} value={member.id}>{member.name} - {member.role}</option>
+                          ))}
+                        </optgroup>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Assigned To</label>
+                      <select
+                        value={newBug.assigned_to || ''}
+                        onChange={(e) => setNewBug({ ...newBug, assigned_to: e.target.value || undefined })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">Unassigned</option>
+                        <optgroup label="Development Team">
+                          {teamMembers.filter(m => m.team_type === 'development').map(member => (
+                            <option key={member.id} value={member.id}>{member.name} - {member.role}</option>
+                          ))}
+                        </optgroup>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Second row: Date, Module, Screen, Severity */}
                   <div className="grid grid-cols-4 gap-4">
                     <input
                       type="date"
                       value={newBug.date}
                       onChange={(e) => setNewBug({ ...newBug, date: e.target.value })}
-                      className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+                      className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
 
                     <select
                       value={newBug.module}
                       onChange={(e) => setNewBug({ ...newBug, module: e.target.value })}
-                      className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+                      className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       {modules.map(mod => (
                         <option key={mod} value={mod}>{mod}</option>
@@ -544,13 +704,13 @@ const BugReport: React.FC<BugReportProps> = ({
                       placeholder="Screen/Page *"
                       value={newBug.screen}
                       onChange={(e) => setNewBug({ ...newBug, screen: e.target.value })}
-                      className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+                      className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
 
                     <select
                       value={newBug.severity}
                       onChange={(e) => setNewBug({ ...newBug, severity: e.target.value as 'P1' | 'P2' | 'P3' })}
-                      className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+                      className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="P1">P1 - Critical</option>
                       <option value="P2">P2 - Major</option>
@@ -598,13 +758,18 @@ const BugReport: React.FC<BugReportProps> = ({
                           setShowAddForm(false);
                           setNewBug({
                             date: new Date().toISOString().split('T')[0],
+                            type: 'bug',
                             module: 'E-commerce',
                             screen: '',
                             snag: '',
                             severity: 'P3',
                             comments: '',
                             status: 'Open',
-                            testingStatus: 'Pending'
+                            testing_status: 'Pending',
+                            project_name: projectName,
+                            project_version: version,
+                            reported_by: undefined,
+                            assigned_to: undefined
                           });
                         }}
                         className="px-4 py-2 text-gray-600 hover:text-gray-800"
@@ -637,15 +802,15 @@ const BugReport: React.FC<BugReportProps> = ({
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">S.No</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Module</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Screen</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Snag</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Severity</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Image</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Comments</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reporter</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Assigned To</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Testing</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                   </tr>
                 </thead>
@@ -653,6 +818,12 @@ const BugReport: React.FC<BugReportProps> = ({
                   {filteredBugs.map((bug) => (
                     <tr key={bug.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 text-sm text-gray-900">{bug.sno}</td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium border ${getTypeColor(bug.type || 'bug')}`}>
+                          {getTypeIcon(bug.type || 'bug')}
+                          {getTypeConfig(bug.type || 'bug').label}
+                        </span>
+                      </td>
                       <td className="px-4 py-3 text-sm text-gray-600">{bug.date}</td>
                       <td className="px-4 py-3 text-sm text-gray-900">{bug.module}</td>
                       <td className="px-4 py-3 text-sm text-gray-900">{bug.screen}</td>
@@ -665,19 +836,25 @@ const BugReport: React.FC<BugReportProps> = ({
                           {bug.severity}
                         </span>
                       </td>
-                      <td className="px-4 py-3">
-                        {bug.image_url && (
-                          <button
-                            onClick={() => handleImageClick(bug.image_url!)}
-                            className="text-blue-600 hover:text-blue-800 transition-colors"
-                            title="View screenshot"
-                          >
-                            <ImageIcon className="w-4 h-4" />
-                          </button>
+                      <td className="px-4 py-3 text-sm">
+                        {bug.reporter ? (
+                          <div>
+                            <div className="font-medium text-gray-900">{bug.reporter.name}</div>
+                            <div className="text-xs text-gray-500">{bug.reporter.team_type === 'client' ? 'Client' : 'Dev'} • {bug.reporter.role}</div>
+                          </div>
+                        ) : (
+                          <span className="text-gray-400">Not assigned</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-600 max-w-xs">
-                        <div className="truncate" title={bug.comments}>{bug.comments}</div>
+                      <td className="px-4 py-3 text-sm">
+                        {bug.assignee ? (
+                          <div>
+                            <div className="font-medium text-gray-900">{bug.assignee.name}</div>
+                            <div className="text-xs text-gray-500">{bug.assignee.role}</div>
+                          </div>
+                        ) : (
+                          <span className="text-gray-400">Unassigned</span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         {editingBug === bug.id ? (
@@ -693,23 +870,6 @@ const BugReport: React.FC<BugReportProps> = ({
                         ) : (
                           <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(bug.status)}`}>
                             {bug.status}
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        {editingBug === bug.id ? (
-                          <select
-                            value={bug.testing_status}
-                            onChange={(e) => handleUpdateBug(bug.id, { testing_status: e.target.value as Bug['testing_status'] })}
-                            className="text-xs px-2 py-1 rounded border"
-                          >
-                            {testingStatuses.map(status => (
-                              <option key={status} value={status}>{status}</option>
-                            ))}
-                          </select>
-                        ) : (
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${getTestingStatusColor(bug.testing_status)}`}>
-                            {bug.testing_status}
                           </span>
                         )}
                       </td>
