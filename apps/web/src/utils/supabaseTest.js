@@ -5,18 +5,20 @@ import { createClient } from '@supabase/supabase-js';
 export const testSupabaseConnection = async () => {
   console.log('🔍 Testing Supabase connection...');
 
-  // Get environment variables
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  // Get environment variables (with fallbacks to BUGTRACKING variants)
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL ||
+                      import.meta.env.VITE_BUGTRACKING_SUPABASE_URL;
+  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY ||
+                          import.meta.env.VITE_BUGTRACKING_SUPABASE_ANON_KEY;
 
   console.log('Environment variables:');
-  console.log('VITE_SUPABASE_URL:', supabaseUrl);
+  console.log('VITE_SUPABASE_URL:', supabaseUrl || 'Using BUGTRACKING variant');
   console.log('VITE_SUPABASE_ANON_KEY:', supabaseAnonKey ? 'Present ✅' : 'Missing ❌');
 
   // Check if environment variables are set
   if (!supabaseUrl || !supabaseAnonKey) {
     console.error('❌ Supabase environment variables are missing!');
-    console.log('Please check your .env file and make sure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are set.');
+    console.log('Please check your .env file and make sure VITE_SUPABASE_URL (or VITE_BUGTRACKING_SUPABASE_URL) and VITE_SUPABASE_ANON_KEY (or VITE_BUGTRACKING_SUPABASE_ANON_KEY) are set.');
     return false;
   }
 

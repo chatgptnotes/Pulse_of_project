@@ -29,12 +29,21 @@ interface PulseOfProjectProps {
 
 const PulseOfProject: React.FC<PulseOfProjectProps> = ({
   clientMode = false,
-  projectId = 'neurosense-mvp',
+  projectId = 'neurosense-360',
   apiKey
 }) => {
   const navigate = useNavigate();
   const [selectedProject, setSelectedProject] = useState(projectId);
   const [projectData, setProjectData] = useState(projectOverview);
+
+  // Map frontend project IDs to database project IDs
+  const getDbProjectId = (projectId: string): string => {
+    const idMap: Record<string, string> = {
+      'neurosense-360': 'neurosense-360', // Keep it consistent
+      // Add more mappings if needed
+    };
+    return idMap[projectId] || projectId;
+  };
   const [autoUpdateEnabled, setAutoUpdateEnabled] = useState(true);
   const [lastSync, setLastSync] = useState(new Date());
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'success' | 'error'>('idle');
@@ -62,69 +71,218 @@ const PulseOfProject: React.FC<PulseOfProjectProps> = ({
 
   // Load project data based on selected project
   useEffect(() => {
-    import('./data/projects').then(({ projects }) => {
-      const project = projects.find(p => p.id === selectedProject);
-      if (project) {
-        // Generate milestone data based on project progress
-        const totalMilestones = 10;
-        const completedCount = Math.floor((project.progress / 100) * totalMilestones);
-        const inProgressCount = project.progress < 100 ? 1 : 0;
+    const loadProjectData = async () => {
+      const dbProjectId = getDbProjectId(selectedProject);
+      console.log('🔍 [PulseOfProject] Loading project data for:', selectedProject, '-> DB ID:', dbProjectId);
 
-        const milestones = Array.from({ length: totalMilestones }, (_, i) => {
-          const milestoneNumber = i + 1;
-          let status: 'completed' | 'in-progress' | 'pending' = 'pending';
-          let progress = 0;
+      try {
+        // First, try to load project data from the database
+        const dbProject = await ProjectTrackingService.getProject(dbProjectId);
 
-          if (milestoneNumber <= completedCount) {
-            status = 'completed';
-            progress = 100;
-          } else if (milestoneNumber === completedCount + 1 && inProgressCount > 0) {
-            status = 'in-progress';
-            progress = ((project.progress % 10) || 10) * 10;
-          }
-
-          return {
-            id: `milestone-${milestoneNumber}`,
-            name: `Phase ${milestoneNumber}: ${['Foundation', 'Development', 'Integration', 'Testing', 'Polish', 'Deployment', 'Launch', 'Optimization', 'Scale', 'Completion'][i]}`,
-            description: `Phase ${milestoneNumber} of project development`,
-            status,
-            startDate: new Date(),
-            endDate: new Date(),
-            progress,
-            deliverables: [],
-            assignedTo: [],
-            dependencies: [],
-            order: milestoneNumber,
-            color: '#4F46E5',
-            kpis: []
-          };
+        console.log('📦 [PulseOfProject] Database response:', {
+          hasProject: !!dbProject,
+          hasMilestones: !!dbProject?.milestones,
+          milestonesCount: dbProject?.milestones?.length || 0
         });
 
-        // Calculate start and end dates
-        const endDate = project.deadline ? new Date(project.deadline) : new Date(Date.now() + 90 * 24 * 60 * 60 * 1000); // Default 90 days from now
-        const startDate = new Date(endDate);
-        startDate.setMonth(startDate.getMonth() - 3); // Start date is 3 months before end date
+        if (dbProject && dbProject.milestones && dbProject.milestones.length > 0) {
+          console.log('✅ [PulseOfProject] Loaded project data from database');
+          console.log('📊 Milestones with deliverables:', dbProject.milestones.map((m: any) => ({
+            id: m.id,
+            name: m.name,
+            deliverables: m.deliverables?.length || 0
+          })));
 
-        setProjectData({
-          ...projectOverview,
-          id: project.id,
-          name: project.name,
-          description: project.description || `${project.client} project`,
-          client: project.client,
-          startDate,
-          endDate,
-          overallProgress: project.progress,
-          milestones,
-          team: Array.from({ length: project.team }, (_, i) => ({
-            id: String(i + 1),
-            name: `Team Member ${i + 1}`,
-              email: `member${i + 1}@${project.client.toLowerCase().replace(/\s+/g, '')}.com`,
-              role: 'Developer',
-              allocation: 100
-            }))
+          // Convert database milestones to the expected format
+          const milestones = dbProject.milestones.map((m: any) => ({
+            id: m.id,
+            name: m.name,
+            description: m.description,
+            status: m.status,
+            startDate: new Date(m.start_date),
+            endDate: new Date(m.end_date),
+            progress: m.progress,
+            deliverables: m.deliverables || [],
+            assignedTo: m.assigned_to || [],
+            dependencies: m.dependencies || [],
+            order: m.order,
+            color: m.color || '#4F46E5',
+            kpis: m.kpis || []
+          }));
+
+          console.log('✨ [PulseOfProject] Setting project data with', milestones.length, 'milestones');
+
+          setProjectData({
+            ...projectOverview,
+            id: dbProject.id,
+            name: dbProject.name,
+            description: dbProject.description,
+            client: dbProject.client,
+            startDate: new Date(dbProject.start_date),
+            endDate: new Date(dbProject.end_date),
+            overallProgress: dbProject.overall_progress,
+            status: dbProject.status,
+            milestones,
+            tasks: dbProject.tasks || [],
+            team: dbProject.team || []
+          });
+        } else {
+        // Fallback: Generate dummy milestone data from project list
+        console.log('⚠️ No database data found, generating dummy milestones');
+
+        import('./data/projects').then(({ projects }) => {
+          const project = projects.find(p => p.id === selectedProject);
+          if (project) {
+            // Calculate start and end dates first
+            const endDate = project.deadline ? new Date(project.deadline) : new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
+            const startDate = new Date(endDate);
+            startDate.setMonth(startDate.getMonth() - 3);
+
+            // Generate milestone data based on project progress
+            const totalMilestones = 10;
+            const completedCount = Math.floor((project.progress / 100) * totalMilestones);
+            const inProgressCount = project.progress < 100 ? 1 : 0;
+
+            // Calculate the duration of the project in days
+            const projectDurationDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+            const daysPerMilestone = Math.floor(projectDurationDays / totalMilestones);
+
+            const milestones = Array.from({ length: totalMilestones }, (_, i) => {
+              const milestoneNumber = i + 1;
+              let status: 'completed' | 'in-progress' | 'pending' = 'pending';
+              let progress = 0;
+
+              if (milestoneNumber <= completedCount) {
+                status = 'completed';
+                progress = 100;
+              } else if (milestoneNumber === completedCount + 1 && inProgressCount > 0) {
+                status = 'in-progress';
+                progress = ((project.progress % 10) || 10) * 10;
+              }
+
+              // Calculate milestone start and end dates
+              const milestoneStartDate = new Date(startDate);
+              milestoneStartDate.setDate(milestoneStartDate.getDate() + (i * daysPerMilestone));
+
+              const milestoneEndDate = new Date(milestoneStartDate);
+              milestoneEndDate.setDate(milestoneEndDate.getDate() + daysPerMilestone - 1);
+
+              return {
+                id: `milestone-${milestoneNumber}`,
+                name: `Phase ${milestoneNumber}: ${['Foundation', 'Development', 'Integration', 'Testing', 'Polish', 'Deployment', 'Launch', 'Optimization', 'Scale', 'Completion'][i]}`,
+                description: `Phase ${milestoneNumber} of project development`,
+                status,
+                startDate: milestoneStartDate,
+                endDate: milestoneEndDate,
+                progress,
+                deliverables: [],
+                assignedTo: [],
+                dependencies: [],
+                order: milestoneNumber,
+                color: '#4F46E5',
+                kpis: []
+              };
+            });
+
+            setProjectData({
+              ...projectOverview,
+              id: project.id,
+              name: project.name,
+              description: project.description || `${project.client} project`,
+              client: project.client,
+              startDate,
+              endDate,
+              overallProgress: project.progress,
+              milestones,
+              team: Array.from({ length: project.team }, (_, i) => ({
+                id: String(i + 1),
+                name: `Team Member ${i + 1}`,
+                email: `member${i + 1}@${project.client.toLowerCase().replace(/\s+/g, '')}.com`,
+                role: 'Developer',
+                allocation: 100
+              }))
+            });
+          }
+        });
+        }
+      } catch (error) {
+        console.error('❌ [PulseOfProject] Error loading project data:', error);
+        toast.error('Failed to load project data from database');
+
+        // Fallback to dummy data on error
+        import('./data/projects').then(({ projects }) => {
+          const project = projects.find(p => p.id === selectedProject);
+          if (project) {
+            console.log('⚠️ Using fallback dummy data due to error');
+            const endDate = project.deadline ? new Date(project.deadline) : new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
+            const startDate = new Date(endDate);
+            startDate.setMonth(startDate.getMonth() - 3);
+
+            const totalMilestones = 10;
+            const completedCount = Math.floor((project.progress / 100) * totalMilestones);
+            const inProgressCount = project.progress < 100 ? 1 : 0;
+            const projectDurationDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+            const daysPerMilestone = Math.floor(projectDurationDays / totalMilestones);
+
+            const milestones = Array.from({ length: totalMilestones }, (_, i) => {
+              const milestoneNumber = i + 1;
+              let status: 'completed' | 'in-progress' | 'pending' = 'pending';
+              let progress = 0;
+
+              if (milestoneNumber <= completedCount) {
+                status = 'completed';
+                progress = 100;
+              } else if (milestoneNumber === completedCount + 1 && inProgressCount > 0) {
+                status = 'in-progress';
+                progress = ((project.progress % 10) || 10) * 10;
+              }
+
+              const milestoneStartDate = new Date(startDate);
+              milestoneStartDate.setDate(milestoneStartDate.getDate() + (i * daysPerMilestone));
+              const milestoneEndDate = new Date(milestoneStartDate);
+              milestoneEndDate.setDate(milestoneEndDate.getDate() + daysPerMilestone - 1);
+
+              return {
+                id: `milestone-${milestoneNumber}`,
+                name: `Phase ${milestoneNumber}: ${['Foundation', 'Development', 'Integration', 'Testing', 'Polish', 'Deployment', 'Launch', 'Optimization', 'Scale', 'Completion'][i]}`,
+                description: `Phase ${milestoneNumber} of project development`,
+                status,
+                startDate: milestoneStartDate,
+                endDate: milestoneEndDate,
+                progress,
+                deliverables: [],
+                assignedTo: [],
+                dependencies: [],
+                order: milestoneNumber,
+                color: '#4F46E5',
+                kpis: []
+              };
+            });
+
+            setProjectData({
+              ...projectOverview,
+              id: project.id,
+              name: project.name,
+              description: project.description || `${project.client} project`,
+              client: project.client,
+              startDate,
+              endDate,
+              overallProgress: project.progress,
+              milestones,
+              team: Array.from({ length: project.team }, (_, i) => ({
+                id: String(i + 1),
+                name: `Team Member ${i + 1}`,
+                email: `member${i + 1}@${project.client.toLowerCase().replace(/\s+/g, '')}.com`,
+                role: 'Developer',
+                allocation: 100
+              }))
+            });
+          }
         });
       }
-    });
+    };
+
+    loadProjectData();
   }, [selectedProject]);
 
   // Navigate to detailed project tracking page
@@ -234,8 +392,10 @@ const PulseOfProject: React.FC<PulseOfProjectProps> = ({
 
   // Handle deliverable toggle
   const handleDeliverableToggle = useCallback(async (milestoneId: string, deliverableId: string) => {
+    const dbProjectId = getDbProjectId(selectedProject);
     console.log('=== handleDeliverableToggle CALLED IN PulseOfProject ===');
     console.log('milestoneId:', milestoneId, 'deliverableId:', deliverableId);
+    console.log('Using DB Project ID:', dbProjectId);
 
     // Use a variable to capture the updated milestone data
     let updatedMilestoneData: any = null;
@@ -259,7 +419,7 @@ const PulseOfProject: React.FC<PulseOfProjectProps> = ({
 
       // Capture the updated milestone data for database save
       updatedMilestoneData = {
-        project_id: prevData.id,
+        project_id: dbProjectId, // Use the database project ID
         name: updatedMilestone.name,
         description: updatedMilestone.description,
         status: updatedMilestone.status,
@@ -300,7 +460,7 @@ const PulseOfProject: React.FC<PulseOfProjectProps> = ({
       console.error('Error saving deliverable to Supabase:', error);
       toast.error('Failed to save to database (saved locally)');
     }
-  }, []); // Empty deps - uses functional updates only
+  }, [selectedProject]); // Include selectedProject since it's used for DB ID mapping
 
   // Auto-sync on interval
   useEffect(() => {
@@ -314,6 +474,51 @@ const PulseOfProject: React.FC<PulseOfProjectProps> = ({
   useEffect(() => {
     syncProjectProgress();
   }, []);
+
+  // Subscribe to real-time changes from the database
+  useEffect(() => {
+    const dbProjectId = getDbProjectId(selectedProject);
+    const subscription = ProjectTrackingService.subscribeToProjectChanges(
+      dbProjectId,
+      (payload) => {
+        console.log('🔔 Real-time update received:', payload);
+
+        // Reload project data when changes occur
+        ProjectTrackingService.getProject(dbProjectId).then(dbProject => {
+          if (dbProject && dbProject.milestones && dbProject.milestones.length > 0) {
+            const milestones = dbProject.milestones.map((m: any) => ({
+              id: m.id,
+              name: m.name,
+              description: m.description,
+              status: m.status,
+              startDate: new Date(m.start_date),
+              endDate: new Date(m.end_date),
+              progress: m.progress,
+              deliverables: m.deliverables || [],
+              assignedTo: m.assigned_to || [],
+              dependencies: m.dependencies || [],
+              order: m.order,
+              color: m.color || '#4F46E5',
+              kpis: m.kpis || []
+            }));
+
+            setProjectData(prev => ({
+              ...prev,
+              milestones,
+              overallProgress: dbProject.overall_progress
+            }));
+          }
+        });
+      }
+    );
+
+    // Cleanup subscription on unmount
+    return () => {
+      if (subscription) {
+        ProjectTrackingService.unsubscribeFromProjectChanges(dbProjectId);
+      }
+    };
+  }, [selectedProject]);
 
   const connectIntegration = async (service: string) => {
     // Simulate OAuth flow
@@ -536,7 +741,10 @@ const PulseOfProject: React.FC<PulseOfProjectProps> = ({
           <div className="mt-6">
             <GanttChart
               data={{
-                ...projectData,
+                milestones: projectData.milestones,
+                tasks: projectData.tasks,
+                startDate: projectData.startDate,
+                endDate: projectData.endDate,
                 viewMode: 'month'
               }}
               onDeliverableToggle={handleDeliverableToggle}
