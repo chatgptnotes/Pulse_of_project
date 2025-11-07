@@ -13,7 +13,7 @@ export class ProjectTrackingService {
   // Projects
   static async getProject(projectId: string): Promise<ProjectData | null> {
     try {
-      const { data, error } = await supabaseService.supabaseService.supabase
+      const { data, error } = await supabaseService.supabase
         .from('projects')
         .select(`
           *,
