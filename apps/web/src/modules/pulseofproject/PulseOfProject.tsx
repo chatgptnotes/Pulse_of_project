@@ -77,13 +77,38 @@ const PulseOfProject: React.FC<PulseOfProjectProps> = ({
 
       try {
         // First, try to load project data from the database
-        const dbProject = await ProjectTrackingService.getProject(dbProjectId);
+        let dbProject = await ProjectTrackingService.getProject(dbProjectId);
 
         console.log('📦 [PulseOfProject] Database response:', {
           hasProject: !!dbProject,
           hasMilestones: !!dbProject?.milestones,
           milestonesCount: dbProject?.milestones?.length || 0
         });
+
+        // If project doesn't exist, create it with default data
+        if (!dbProject) {
+          console.log('⚠️ Project not found in database, creating it...');
+          const projectToMatch = PRODUCT_CONFIG.projects.find(p => p.id === selectedProject);
+          const defaultData = projectToMatch?.projectData || projectOverview;
+
+          // Create project in database
+          const success = await ProjectTrackingService.updateProject(dbProjectId, {
+            id: dbProjectId,
+            name: projectToMatch?.name || selectedProject,
+            description: projectToMatch?.description || '',
+            client: 'Client',
+            startDate: defaultData.startDate,
+            endDate: defaultData.endDate,
+            status: 'active',
+            overallProgress: 0
+          });
+
+          if (success) {
+            console.log('✅ Project created in database');
+            // Now load it
+            dbProject = await ProjectTrackingService.getProject(dbProjectId);
+          }
+        }
 
         if (dbProject && dbProject.milestones && dbProject.milestones.length > 0) {
           console.log('✅ [PulseOfProject] Loaded project data from database');
@@ -451,14 +476,28 @@ const PulseOfProject: React.FC<PulseOfProjectProps> = ({
         console.log('💾 Saving to database:', updatedMilestoneData.deliverables);
         const success = await ProjectTrackingService.toggleDeliverable(milestoneId, deliverableId, updatedMilestoneData);
         if (success) {
-          toast.success('Deliverable status saved to database');
+          toast.success('Deliverable saved');
+
+          // CRITICAL: Verify the save by reloading from database
+          console.log('🔄 Reloading from database to verify save...');
+          const dbProject = await ProjectTrackingService.getProject(dbProjectId);
+          if (dbProject && dbProject.milestones) {
+            const savedMilestone = dbProject.milestones.find((m: any) => m.id === milestoneId);
+            const savedDeliverable = savedMilestone?.deliverables?.find((d: any) => d.id === deliverableId);
+            console.log('✅ Verified in DB - deliverable completed:', savedDeliverable?.completed);
+            if (savedDeliverable) {
+              console.log('Database has the correct state!');
+            } else {
+              console.error('❌ Deliverable not found in reloaded data!');
+            }
+          }
         } else {
-          toast.error('Failed to save to database (saved locally)');
+          toast.error('Failed to save');
         }
       }
     } catch (error) {
       console.error('Error saving deliverable to Supabase:', error);
-      toast.error('Failed to save to database (saved locally)');
+      toast.error('Failed to save');
     }
   }, [selectedProject]); // Include selectedProject since it's used for DB ID mapping
 

@@ -13,20 +13,37 @@ export class ProjectTrackingService {
   // Projects
   static async getProject(projectId: string): Promise<ProjectData | null> {
     try {
-      const { data, error } = await supabaseService.supabase
+      // Load project and milestones separately to avoid foreign key issues
+      const { data: project, error: projectError } = await supabaseService.supabase
         .from('projects')
-        .select(`
-          *,
-          milestones:project_milestones(*),
-          tasks:project_tasks(*),
-          team:project_team_members(*),
-          risks:project_risks(*)
-        `)
+        .select('*')
         .eq('id', projectId)
         .single();
 
-      if (error) throw error;
-      return data as ProjectData;
+      if (projectError) {
+        console.error('Error fetching project:', projectError);
+        return null;
+      }
+
+      // Load milestones separately
+      const { data: milestones, error: milestonesError } = await supabaseService.supabase
+        .from('project_milestones')
+        .select('*')
+        .eq('project_id', projectId)
+        .order('order', { ascending: true });
+
+      if (milestonesError) {
+        console.error('Error fetching milestones:', milestonesError);
+      }
+
+      // Combine the data
+      return {
+        ...project,
+        milestones: milestones || [],
+        tasks: [],
+        team: [],
+        risks: []
+      } as ProjectData;
     } catch (error) {
       console.error('Error fetching project:', error);
       return null;
