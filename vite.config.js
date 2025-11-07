@@ -1,6 +1,9 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
+import { fileURLToPath } from 'url'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -10,6 +13,8 @@ export default defineConfig({
   },
   root: '.',
   publicDir: 'apps/web/public',
+  // Explicitly set envDir to repository root so .env files are loaded correctly
+  envDir: __dirname,
   server: {
     port: 3000,
     open: true,
