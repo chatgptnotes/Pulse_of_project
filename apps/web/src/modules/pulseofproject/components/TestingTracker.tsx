@@ -76,8 +76,8 @@ const TestingTracker: React.FC<TestingTrackerProps> = ({
   };
 
   const handleAddTest = async () => {
-    if (!newTest.bug_report_id || !newTest.test_case_name || !newTest.tester_name) {
-      alert('Please fill in required fields: Bug Report, Test Case Name, and Tester Name');
+    if (!newTest.test_case_name || !newTest.tester_name) {
+      alert('Please fill in required fields: Test Case Name and Tester Name');
       return;
     }
 
@@ -261,54 +261,115 @@ const TestingTracker: React.FC<TestingTrackerProps> = ({
             className="p-4 bg-blue-50 border-b border-blue-200"
           >
             <h3 className="text-lg font-semibold mb-4">Add New Test Case</h3>
+
+            {/* Helper text when no bugs available */}
+            {bugs.length === 0 && (
+              <div className="mb-4 p-3 bg-blue-100 border border-blue-200 rounded-lg text-sm text-blue-800">
+                <strong>💡 Tip:</strong> No bug reports found. You can create a general test case or add bug reports first using the "Bug Report" section above.
+              </div>
+            )}
+
+            {/* Quick Test Case Examples */}
+            <details className="mb-4 bg-green-50 border border-green-200 rounded-lg">
+              <summary className="px-3 py-2 cursor-pointer text-sm font-medium text-green-800 hover:bg-green-100">
+                📋 Quick Test Case Examples (Click to expand)
+              </summary>
+              <div className="px-3 py-2 text-xs text-gray-700 space-y-2">
+                <div className="border-l-2 border-green-400 pl-2">
+                  <strong>Login Functionality:</strong>
+                  <div className="ml-2">• Test: "Login with valid credentials"</div>
+                  <div className="ml-2">• Expected: User redirected to dashboard</div>
+                </div>
+                <div className="border-l-2 border-blue-400 pl-2">
+                  <strong>Navigation:</strong>
+                  <div className="ml-2">• Test: "Navigate to settings page"</div>
+                  <div className="ml-2">• Expected: Settings page loads with user preferences</div>
+                </div>
+                <div className="border-l-2 border-purple-400 pl-2">
+                  <strong>Form Validation:</strong>
+                  <div className="ml-2">• Test: "Submit form with empty required fields"</div>
+                  <div className="ml-2">• Expected: Error messages displayed for empty fields</div>
+                </div>
+                <div className="border-l-2 border-orange-400 pl-2">
+                  <strong>Data Operations:</strong>
+                  <div className="ml-2">• Test: "Create new project record"</div>
+                  <div className="ml-2">• Expected: Record saved and appears in project list</div>
+                </div>
+              </div>
+            </details>
+
             <div className="grid grid-cols-3 gap-4">
-              <select
-                value={newTest.bug_report_id}
-                onChange={(e) => setNewTest({ ...newTest, bug_report_id: e.target.value })}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required
-              >
-                <option value="">Select Bug Report *</option>
-                {bugs.map(bug => (
-                  <option key={bug.id} value={bug.id}>
-                    Bug #{bug.sno} - {bug.screen}
-                  </option>
-                ))}
-              </select>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Bug Report (Optional)
+                </label>
+                <select
+                  value={newTest.bug_report_id || ''}
+                  onChange={(e) => setNewTest({ ...newTest, bug_report_id: e.target.value || undefined })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">No Bug Report / General Test</option>
+                  {bugs.map(bug => (
+                    <option key={bug.id} value={bug.id}>
+                      Bug #{bug.sno} - {bug.screen}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-              <input
-                type="text"
-                placeholder="Test Case Name *"
-                value={newTest.test_case_name}
-                onChange={(e) => setNewTest({ ...newTest, test_case_name: e.target.value })}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required
-              />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Test Case Name *
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g., Login with valid credentials"
+                  value={newTest.test_case_name}
+                  onChange={(e) => setNewTest({ ...newTest, test_case_name: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
 
-              <input
-                type="text"
-                placeholder="Tester Name *"
-                value={newTest.tester_name}
-                onChange={(e) => setNewTest({ ...newTest, tester_name: e.target.value })}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required
-              />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Tester Name *
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g., John Doe"
+                  value={newTest.tester_name}
+                  onChange={(e) => setNewTest({ ...newTest, tester_name: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4 mt-4">
-              <textarea
-                placeholder="Test Description"
-                value={newTest.test_description}
-                onChange={(e) => setNewTest({ ...newTest, test_description: e.target.value })}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 h-24"
-              />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Test Description
+                </label>
+                <textarea
+                  placeholder="e.g., Navigate to login page, enter username and password, click login button"
+                  value={newTest.test_description || ''}
+                  onChange={(e) => setNewTest({ ...newTest, test_description: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 h-24"
+                />
+              </div>
 
-              <textarea
-                placeholder="Expected Result"
-                value={newTest.expected_result}
-                onChange={(e) => setNewTest({ ...newTest, expected_result: e.target.value })}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 h-24"
-              />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Expected Result
+                </label>
+                <textarea
+                  placeholder="e.g., User should be redirected to dashboard with welcome message"
+                  value={newTest.expected_result || ''}
+                  onChange={(e) => setNewTest({ ...newTest, expected_result: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 h-24"
+                />
+              </div>
             </div>
 
             <div className="flex items-center justify-between mt-4">

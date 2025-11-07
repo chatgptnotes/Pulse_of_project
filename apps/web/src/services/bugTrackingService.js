@@ -339,10 +339,18 @@ class BugTrackingService {
   // ===== TESTING TRACKER METHODS =====
 
   async createTestRecord(testData) {
+    // Clean up the test data - remove empty strings and undefined values
+    const cleanedData = { ...testData };
+
+    // If bug_report_id is empty string or undefined, remove it (allow NULL in DB)
+    if (!cleanedData.bug_report_id || cleanedData.bug_report_id === '') {
+      delete cleanedData.bug_report_id;
+    }
+
     const testRecord = {
-      ...testData,
-      test_date: testData.test_date || new Date().toISOString().split('T')[0],
-      test_status: testData.test_status || 'Pending',
+      ...cleanedData,
+      test_date: cleanedData.test_date || new Date().toISOString().split('T')[0],
+      test_status: cleanedData.test_status || 'Pending',
       created_at: new Date().toISOString()
     };
 
