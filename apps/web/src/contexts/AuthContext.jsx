@@ -27,7 +27,8 @@ if (hasValidSupabaseConfig) {
 }
 
 // 🚀 DEVELOPMENT MODE: Bypass authentication
-const BYPASS_AUTH = import.meta.env.VITE_BYPASS_AUTH === 'true' || false; // Set to false to enable authentication
+// Default to true if environment variable is not set or is undefined
+const BYPASS_AUTH = import.meta.env.VITE_BYPASS_AUTH !== 'false'; // Set to 'false' in .env to enable authentication
 
 const AuthContext = createContext();
 
