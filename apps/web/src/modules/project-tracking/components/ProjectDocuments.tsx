@@ -1,10 +1,11 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
-  FileText, Upload, Download, Eye, Trash2, File,
-  FolderGit2, User, Calendar, Search, X
+  FileText, Upload, Download, Trash2, File,
+  FolderGit2, User, Calendar, Search, Loader2, AlertCircle
 } from 'lucide-react';
 import { format } from 'date-fns';
-import ReactMarkdown from 'react-markdown';
+import toast from 'react-hot-toast';
+import documentStorageService, { DocumentMetadata } from '../../../services/documentStorageService';
 
 interface Document {
   id: string;
@@ -16,6 +17,12 @@ interface Document {
   uploadedAt?: Date;
   size?: number;
   mimeType?: string;
+  // Supabase fields
+  file_path?: string;
+  file_type?: string;
+  description?: string;
+  tags?: string[];
+  is_public?: boolean;
 }
 
 interface ProjectDocumentsProps {
@@ -23,124 +30,180 @@ interface ProjectDocumentsProps {
   isEditMode: boolean;
 }
 
-// Git documents that are part of the repository
-const GIT_DOCUMENTS = [
-  { name: 'PULSEOFPROJECT_README.md', path: '/PULSEOFPROJECT_README.md' },
-  { name: 'PROJECT_TRACKING_MODULE.md', path: '/PROJECT_TRACKING_MODULE.md' },
-  { name: 'COLLABORATIVE_PROJECT_TRACKING_GUIDE.md', path: '/COLLABORATIVE_PROJECT_TRACKING_GUIDE.md' },
-  { name: 'PULSEOFPROJECT_DEPLOYMENT.md', path: '/PULSEOFPROJECT_DEPLOYMENT.md' },
-  { name: 'SETUP_GUIDE.md', path: '/SETUP_GUIDE.md' },
-  { name: 'SETUP_INSTRUCTIONS.md', path: '/SETUP_INSTRUCTIONS.md' },
-];
+// Git documents that are part of the repository - REMOVED
+// Only showing uploaded documents from Supabase Storage
+const GIT_DOCUMENTS: Array<{ name: string; path: string }> = [];
 
 const ProjectDocuments: React.FC<ProjectDocumentsProps> = ({ projectId, isEditMode }) => {
-  const [documents, setDocuments] = useState<Document[]>([
-    ...GIT_DOCUMENTS.map((doc, idx) => ({
-      id: `git-${idx}`,
-      name: doc.name,
-      type: 'git' as const,
-      path: doc.path
-    }))
-  ]);
-  const [selectedDoc, setSelectedDoc] = useState<Document | null>(null);
-  const [viewingContent, setViewingContent] = useState<string | null>(null);
+  const [documents, setDocuments] = useState<Document[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  // Load documents from Supabase on mount
+  useEffect(() => {
+    loadDocuments();
+  }, [projectId]);
+
+  const loadDocuments = async () => {
+    setIsLoading(true);
+    try {
+      const supabaseDocs = await documentStorageService.getProjectDocuments(projectId);
+
+      // Convert Supabase documents to our Document interface
+      const uploadedDocs: Document[] = supabaseDocs.map(doc => ({
+        id: doc.id || '',
+        name: doc.filename,
+        type: 'uploaded' as const,
+        uploadedBy: doc.uploaded_by,
+        uploadedAt: doc.uploaded_at ? new Date(doc.uploaded_at) : undefined,
+        size: doc.file_size,
+        mimeType: doc.mime_type,
+        file_path: doc.file_path,
+        file_type: doc.file_type,
+        description: doc.description,
+        tags: doc.tags,
+        is_public: doc.is_public
+      }));
+
+      // Only show uploaded documents (no Git documents)
+      setDocuments(uploadedDocs);
+
+    } catch (error) {
+      console.error('Error loading documents:', error);
+      toast.error('Failed to load documents');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
-    if (!files) return;
+    if (!files || files.length === 0) return;
 
-    Array.from(files).forEach(file => {
-      const reader = new FileReader();
+    setIsUploading(true);
 
-      reader.onload = (e) => {
-        const content = e.target?.result as string;
-        const newDoc: Document = {
-          id: `uploaded-${Date.now()}-${Math.random()}`,
-          name: file.name,
-          type: 'uploaded',
-          content,
-          uploadedBy: 'Current User',
-          uploadedAt: new Date(),
-          size: file.size,
-          mimeType: file.type
-        };
+    try {
+      const fileArray = Array.from(files);
+      const uploadedBy = 'Current User'; // TODO: Get from auth context
 
-        setDocuments(prev => [...prev, newDoc]);
+      toast.loading(`Uploading ${fileArray.length} file(s)...`, { id: 'upload' });
 
-        // Save to localStorage
-        const storageKey = `project-${projectId}-documents`;
-        const existingDocs = JSON.parse(localStorage.getItem(storageKey) || '[]');
-        localStorage.setItem(storageKey, JSON.stringify([...existingDocs, newDoc]));
-      };
+      // Upload files to Supabase
+      const results = await documentStorageService.uploadMultipleDocuments(
+        fileArray,
+        projectId,
+        uploadedBy,
+        {
+          description: '',
+          tags: [],
+          isPublic: false
+        }
+      );
 
-      reader.readAsText(file);
-    });
+      // Check results
+      const successful = results.filter(r => r.success);
+      const failed = results.filter(r => !r.success);
 
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
+      if (successful.length > 0) {
+        toast.success(`Successfully uploaded ${successful.length} file(s)`, { id: 'upload' });
+
+        // Reload documents
+        await loadDocuments();
+      }
+
+      if (failed.length > 0) {
+        const errorMessages = failed.map(r => r.error).join(', ');
+        toast.error(`Failed to upload ${failed.length} file(s): ${errorMessages}`, { id: 'upload' });
+      }
+
+    } catch (error) {
+      console.error('Upload error:', error);
+      toast.error('Failed to upload files', { id: 'upload' });
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
   };
 
-  const handleDeleteDocument = (docId: string) => {
-    if (!confirm('Are you sure you want to delete this document?')) return;
-
-    setDocuments(prev => prev.filter(doc => doc.id !== docId));
-
-    // Update localStorage
-    const storageKey = `project-${projectId}-documents`;
-    const updatedDocs = documents.filter(doc => doc.id !== docId);
-    localStorage.setItem(storageKey, JSON.stringify(updatedDocs.filter(d => d.type === 'uploaded')));
-
-    if (selectedDoc?.id === docId) {
-      setSelectedDoc(null);
-      setViewingContent(null);
-    }
-  };
-
-  const handleViewDocument = async (doc: Document) => {
-    setSelectedDoc(doc);
-
-    if (doc.type === 'git' && doc.path) {
-      // In a real app, fetch from server or git
-      // For now, we'll just show a placeholder
-      setViewingContent(`# ${doc.name}\n\nThis is a Git repository document. Content would be loaded from: ${doc.path}\n\n## Features\n- Document tracking\n- Version control\n- Collaborative editing`);
-    } else if (doc.content) {
-      setViewingContent(doc.content);
-    }
-  };
-
-  const handleDownloadDocument = (doc: Document) => {
-    let content = '';
-    let fileName = doc.name;
+  const handleDeleteDocument = async (docId: string) => {
+    const doc = documents.find(d => d.id === docId);
+    if (!doc) return;
 
     if (doc.type === 'git') {
-      content = `Git document: ${doc.name}\nPath: ${doc.path}`;
-    } else if (doc.content) {
-      content = doc.content;
+      toast.error('Cannot delete Git repository documents');
+      return;
     }
 
-    const blob = new Blob([content], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = fileName;
-    a.click();
-    URL.revokeObjectURL(url);
+    if (!confirm('Are you sure you want to delete this document?')) return;
+
+    try {
+      toast.loading('Deleting document...', { id: 'delete' });
+
+      const success = await documentStorageService.deleteDocument(docId);
+
+      if (success) {
+        toast.success('Document deleted successfully', { id: 'delete' });
+
+        // Remove from local state
+        setDocuments(prev => prev.filter(d => d.id !== docId));
+
+        if (selectedDoc?.id === docId) {
+          setSelectedDoc(null);
+          setViewingContent(null);
+        }
+      } else {
+        toast.error('Failed to delete document', { id: 'delete' });
+      }
+
+    } catch (error) {
+      console.error('Delete error:', error);
+      toast.error('Failed to delete document', { id: 'delete' });
+    }
   };
 
-  const extractText = (doc: Document): string => {
-    if (doc.content) {
-      // Strip markdown formatting for plain text extraction
-      return doc.content
-        .replace(/#{1,6}\s/g, '')
-        .replace(/\*\*/g, '')
-        .replace(/\*/g, '')
-        .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1')
-        .replace(/`{1,3}/g, '');
+  const handleDownloadDocument = async (doc: Document) => {
+    try {
+      if (doc.type === 'git') {
+        // Handle Git documents
+        const content = `Git document: ${doc.name}\nPath: ${doc.path}`;
+        const blob = new Blob([content], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = doc.name;
+        a.click();
+        URL.revokeObjectURL(url);
+        return;
+      }
+
+      // Handle Supabase storage documents
+      if (doc.file_path) {
+        toast.loading('Downloading...', { id: 'download' });
+
+        const result = await documentStorageService.downloadDocument(doc.file_path);
+
+        if (result.success && result.data) {
+          const url = URL.createObjectURL(result.data);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = doc.name;
+          a.click();
+          URL.revokeObjectURL(url);
+
+          toast.success('Download complete', { id: 'download' });
+        } else {
+          toast.error(result.error || 'Download failed', { id: 'download' });
+        }
+      }
+
+    } catch (error) {
+      console.error('Download error:', error);
+      toast.error('Failed to download document');
     }
-    return '';
   };
 
   const filteredDocuments = documents.filter(doc =>
@@ -160,26 +223,54 @@ const ProjectDocuments: React.FC<ProjectDocumentsProps> = ({ projectId, isEditMo
         <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
           <FileText className="w-6 h-6 text-blue-500" />
           Project Documents
+          {isLoading && <Loader2 className="w-5 h-5 animate-spin text-gray-400" />}
         </h2>
 
         {isEditMode && (
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex items-center gap-2 transition-colors"
+            disabled={isUploading}
+            className={`px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex items-center gap-2 transition-colors ${
+              isUploading ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
           >
-            <Upload className="w-4 h-4" />
-            Upload Document
+            {isUploading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Uploading...
+              </>
+            ) : (
+              <>
+                <Upload className="w-4 h-4" />
+                Upload Document
+              </>
+            )}
           </button>
         )}
         <input
           ref={fileInputRef}
           type="file"
           multiple
-          accept=".md,.txt,.pdf,.doc,.docx"
+          accept=".md,.txt,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.jpg,.jpeg,.png,.gif,.webp,.zip"
           onChange={handleFileUpload}
           className="hidden"
         />
       </div>
+
+      {/* Storage Info Banner */}
+      {isEditMode && (
+        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-start gap-2 text-sm">
+          <AlertCircle className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+          <div>
+            <p className="text-blue-900">
+              Documents are stored securely in neuro_bucket. Maximum file size: 50MB.
+            </p>
+            <p className="text-blue-700 text-xs mt-1">
+              Supported: PDF, Word, PowerPoint, Excel, Images, Text files, and Archives
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Search */}
       <div className="mb-4">
@@ -195,9 +286,9 @@ const ProjectDocuments: React.FC<ProjectDocumentsProps> = ({ projectId, isEditMo
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div>
         {/* Document List */}
-        <div className="space-y-3 max-h-[600px] overflow-y-auto">
+        <div className="space-y-3 overflow-y-auto">
           <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
             Documents ({filteredDocuments.length})
           </h3>
@@ -205,10 +296,7 @@ const ProjectDocuments: React.FC<ProjectDocumentsProps> = ({ projectId, isEditMo
           {filteredDocuments.map(doc => (
             <div
               key={doc.id}
-              className={`p-4 border rounded-lg hover:shadow-md transition-all cursor-pointer ${
-                selectedDoc?.id === doc.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
-              }`}
-              onClick={() => handleViewDocument(doc)}
+              className="p-4 border border-gray-200 rounded-lg hover:shadow-md transition-all"
             >
               <div className="flex items-start justify-between">
                 <div className="flex items-start gap-3 flex-1">
@@ -243,37 +331,27 @@ const ProjectDocuments: React.FC<ProjectDocumentsProps> = ({ projectId, isEditMo
                   </div>
                 </div>
 
-                <div className="flex gap-1 ml-2">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleViewDocument(doc);
-                    }}
-                    className="p-1.5 text-blue-600 hover:bg-blue-100 rounded"
-                    title="View"
-                  >
-                    <Eye className="w-4 h-4" />
-                  </button>
+                <div className="flex gap-2 ml-2">
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       handleDownloadDocument(doc);
                     }}
-                    className="p-1.5 text-green-600 hover:bg-green-100 rounded"
+                    className="p-2 text-green-600 hover:bg-green-100 rounded-lg transition-colors"
                     title="Download"
                   >
-                    <Download className="w-4 h-4" />
+                    <Download className="w-5 h-5" />
                   </button>
-                  {isEditMode && doc.type === 'uploaded' && (
+                  {doc.type === 'uploaded' && (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         handleDeleteDocument(doc.id);
                       }}
-                      className="p-1.5 text-red-600 hover:bg-red-100 rounded"
+                      className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors"
                       title="Delete"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 className="w-5 h-5" />
                     </button>
                   )}
                 </div>
@@ -293,48 +371,6 @@ const ProjectDocuments: React.FC<ProjectDocumentsProps> = ({ projectId, isEditMo
                   Clear search
                 </button>
               )}
-            </div>
-          )}
-        </div>
-
-        {/* Document Viewer */}
-        <div className="border rounded-lg">
-          {selectedDoc && viewingContent ? (
-            <div className="h-full flex flex-col">
-              <div className="p-4 border-b bg-gray-50 flex justify-between items-center">
-                <h3 className="font-semibold text-gray-900">{selectedDoc.name}</h3>
-                <button
-                  onClick={() => {
-                    setSelectedDoc(null);
-                    setViewingContent(null);
-                  }}
-                  className="p-1 hover:bg-gray-200 rounded"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-              <div className="p-6 overflow-y-auto max-h-[500px] prose prose-sm max-w-none">
-                <ReactMarkdown>{viewingContent}</ReactMarkdown>
-              </div>
-              <div className="p-4 border-t bg-gray-50">
-                <button
-                  onClick={() => {
-                    const text = extractText(selectedDoc);
-                    navigator.clipboard.writeText(text);
-                    alert('Text extracted and copied to clipboard!');
-                  }}
-                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm"
-                >
-                  Extract & Copy Text
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="h-full flex items-center justify-center text-gray-400 p-12">
-              <div className="text-center">
-                <FileText className="w-16 h-16 mx-auto mb-4" />
-                <p>Select a document to view</p>
-              </div>
             </div>
           )}
         </div>
