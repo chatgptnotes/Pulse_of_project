@@ -807,6 +807,7 @@ const BugReport: React.FC<BugReportProps> = ({
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Module</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Screen</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Image</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Severity</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reporter</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Assigned To</th>
@@ -829,6 +830,21 @@ const BugReport: React.FC<BugReportProps> = ({
                       <td className="px-4 py-3 text-sm text-gray-900">{bug.screen}</td>
                       <td className="px-4 py-3 text-sm text-gray-900 max-w-xs">
                         <div className="truncate" title={bug.snag}>{bug.snag}</div>
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {bug.image_url ? (
+                          <button
+                            onClick={() => handleImageClick(bug.image_url!)}
+                            className="inline-flex items-center justify-center p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors group"
+                            title="View screenshot"
+                          >
+                            <ImageIcon className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                          </button>
+                        ) : (
+                          <span className="text-gray-300" title="No image">
+                            <ImageIcon className="w-5 h-5 mx-auto" />
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium border ${getSeverityColor(bug.severity)}`}>
