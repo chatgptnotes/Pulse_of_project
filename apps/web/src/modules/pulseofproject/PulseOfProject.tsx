@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import {
   Activity, GitBranch, Github, Gitlab, AlertCircle, CheckCircle2,
@@ -33,6 +33,7 @@ const PulseOfProject: React.FC<PulseOfProjectProps> = ({
   apiKey
 }) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [selectedProject, setSelectedProject] = useState(projectId);
   const [projectData, setProjectData] = useState(projectOverview);
 
@@ -547,6 +548,8 @@ const PulseOfProject: React.FC<PulseOfProjectProps> = ({
               milestones,
               overallProgress: dbProject.overall_progress
             }));
+
+            console.log('✅ Project data refreshed with latest deliverables');
           }
         });
       }
@@ -557,6 +560,132 @@ const PulseOfProject: React.FC<PulseOfProjectProps> = ({
       if (subscription) {
         ProjectTrackingService.unsubscribeFromProjectChanges(dbProjectId);
       }
+    };
+  }, [selectedProject]);
+
+  // Reload data when navigating back to this page (React Router navigation)
+  useEffect(() => {
+    console.log('🔄 Route changed - reloading project data...');
+    const dbProjectId = getDbProjectId(selectedProject);
+
+    const reloadData = async () => {
+      try {
+        const dbProject = await ProjectTrackingService.getProject(dbProjectId);
+        if (dbProject && dbProject.milestones && dbProject.milestones.length > 0) {
+          const milestones = dbProject.milestones.map((m: any) => ({
+            id: m.id,
+            name: m.name,
+            description: m.description,
+            status: m.status,
+            startDate: new Date(m.start_date),
+            endDate: new Date(m.end_date),
+            progress: m.progress,
+            deliverables: m.deliverables || [],
+            assignedTo: m.assigned_to || [],
+            dependencies: m.dependencies || [],
+            order: m.order,
+            color: m.color || '#4F46E5',
+            kpis: m.kpis || []
+          }));
+
+          setProjectData(prev => ({
+            ...prev,
+            milestones,
+            overallProgress: dbProject.overall_progress
+          }));
+
+          console.log('✅ Project data refreshed on route change');
+        }
+      } catch (error) {
+        console.error('Error reloading project data:', error);
+      }
+    };
+
+    reloadData();
+  }, [location.pathname, selectedProject]);
+
+  // Reload data when window/tab becomes visible again (user switches back)
+  useEffect(() => {
+    const handleVisibilityChange = async () => {
+      if (!document.hidden) {
+        console.log('🔄 Tab became visible - reloading project data...');
+        const dbProjectId = getDbProjectId(selectedProject);
+
+        try {
+          const dbProject = await ProjectTrackingService.getProject(dbProjectId);
+          if (dbProject && dbProject.milestones && dbProject.milestones.length > 0) {
+            const milestones = dbProject.milestones.map((m: any) => ({
+              id: m.id,
+              name: m.name,
+              description: m.description,
+              status: m.status,
+              startDate: new Date(m.start_date),
+              endDate: new Date(m.end_date),
+              progress: m.progress,
+              deliverables: m.deliverables || [],
+              assignedTo: m.assigned_to || [],
+              dependencies: m.dependencies || [],
+              order: m.order,
+              color: m.color || '#4F46E5',
+              kpis: m.kpis || []
+            }));
+
+            setProjectData(prev => ({
+              ...prev,
+              milestones,
+              overallProgress: dbProject.overall_progress
+            }));
+
+            console.log('✅ Project data refreshed on visibility change');
+          }
+        } catch (error) {
+          console.error('Error reloading project data:', error);
+        }
+      }
+    };
+
+    const handleWindowFocus = async () => {
+      console.log('🔄 Window focused - reloading project data...');
+      const dbProjectId = getDbProjectId(selectedProject);
+
+      try {
+        const dbProject = await ProjectTrackingService.getProject(dbProjectId);
+        if (dbProject && dbProject.milestones && dbProject.milestones.length > 0) {
+          const milestones = dbProject.milestones.map((m: any) => ({
+            id: m.id,
+            name: m.name,
+            description: m.description,
+            status: m.status,
+            startDate: new Date(m.start_date),
+            endDate: new Date(m.end_date),
+            progress: m.progress,
+            deliverables: m.deliverables || [],
+            assignedTo: m.assigned_to || [],
+            dependencies: m.dependencies || [],
+            order: m.order,
+            color: m.color || '#4F46E5',
+            kpis: m.kpis || []
+          }));
+
+          setProjectData(prev => ({
+            ...prev,
+            milestones,
+            overallProgress: dbProject.overall_progress
+          }));
+
+          console.log('✅ Project data refreshed on window focus');
+        }
+      } catch (error) {
+        console.error('Error reloading project data:', error);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleWindowFocus);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleWindowFocus);
     };
   }, [selectedProject]);
 
