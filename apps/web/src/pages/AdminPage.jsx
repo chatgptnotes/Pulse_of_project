@@ -9,6 +9,7 @@ import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
 import { projects as importedProjects } from '../modules/pulseofproject/data/projects.ts';
 import bugTrackingService from '../services/bugTrackingService.js';
+import adminProjectService from '../services/adminProjectService.js';
 
 const AdminPage = () => {
   const navigate = useNavigate();
@@ -37,20 +38,66 @@ const AdminPage = () => {
   const [loadingBugs, setLoadingBugs] = useState(false);
   const [bugCounts, setBugCounts] = useState({});
 
-  // Load projects from imported data and localStorage
+  // Load projects from Supabase database
   useEffect(() => {
-    // Convert imported projects to the format needed for AdminPage
+    loadProjectsFromDatabase();
+  }, []);
+
+  const loadProjectsFromDatabase = async () => {
+    try {
+      console.log('🔍 Loading projects from Supabase...');
+
+      // Try to load from database first
+      let dbProjects = await adminProjectService.getAllProjects();
+
+      if (dbProjects && dbProjects.length > 0) {
+        console.log(`✅ Loaded ${dbProjects.length} projects from database`);
+
+        // Convert database format to AdminPage format
+        const convertedProjects = dbProjects.map(p => ({
+          id: p.id,
+          name: p.name,
+          description: p.description || `${p.client} project`,
+          startDate: new Date().toISOString().split('T')[0],
+          endDate: p.deadline,
+          status: p.status,
+          progress: p.progress,
+          bugs: 0, // Will be calculated from bug tracking service
+          team: p.team_count,
+          shareToken: p.share_token || generateShareToken(),
+          createdAt: p.created_at || new Date().toISOString(),
+          client: p.client,
+          category: p.category,
+          priority: p.priority,
+          starred: p.starred,
+          url: p.url,
+          isCustom: p.is_custom
+        }));
+
+        setProjects(convertedProjects);
+        fetchBugCounts(convertedProjects);
+      } else {
+        console.warn('⚠️ No projects found in database, using fallback static data');
+        loadFallbackProjects();
+      }
+    } catch (error) {
+      console.error('❌ Error loading projects from database:', error);
+      console.log('ℹ️ Falling back to static projects');
+      loadFallbackProjects();
+    }
+  };
+
+  const loadFallbackProjects = () => {
+    // Fallback to static imported projects
     const convertedProjects = importedProjects.map(p => ({
       id: p.id,
       name: p.name,
       description: p.description || `${p.client} project`,
-      startDate: new Date().toISOString().split('T')[0], // Use today as default
+      startDate: new Date().toISOString().split('T')[0],
       endDate: p.deadline,
-      status: p.status === 'active' ? 'in-progress' :
-              p.status === 'planning' ? 'planning' :
-              p.status === 'completed' ? 'completed' : 'on-hold',
+      status: p.status,
       progress: p.progress,
-      bugs: 0, // Will be calculated from bug tracking service
+      bugs: 0,
       team: p.team,
       shareToken: p.shareToken || generateShareToken(),
       createdAt: new Date().toISOString(),
@@ -58,30 +105,14 @@ const AdminPage = () => {
       category: p.category,
       priority: p.priority,
       starred: p.starred,
-      url: p.url
+      url: p.url,
+      isCustom: false
     }));
 
-    // Check if there are any custom projects in localStorage
-    const savedCustomProjects = localStorage.getItem('customProjects');
-    let customProjects = [];
-
-    if (savedCustomProjects) {
-      try {
-        customProjects = JSON.parse(savedCustomProjects);
-      } catch (e) {
-        console.warn('Failed to parse custom projects');
-      }
-    }
-
-    // Merge imported projects with custom projects
-    const allProjects = [...convertedProjects, ...customProjects];
-
-    setProjects(allProjects);
-    console.log(`✅ Loaded ${allProjects.length} projects (${convertedProjects.length} system + ${customProjects.length} custom)`);
-
-    // Fetch bug counts for all projects
-    fetchBugCounts(allProjects);
-  }, []);
+    setProjects(convertedProjects);
+    console.log(`✅ Loaded ${convertedProjects.length} fallback projects`);
+    fetchBugCounts(convertedProjects);
+  };
 
   // Project name mapping for database lookup
   const projectNameMapping = {
@@ -174,62 +205,99 @@ const AdminPage = () => {
     }
   };
 
-  const handleCreateProject = () => {
+  const handleCreateProject = async () => {
     if (!newProject.name || !newProject.startDate) {
       toast.error('Please fill in required fields');
       return;
     }
 
-    const project = {
-      id: newProject.name.toLowerCase().replace(/\s+/g, '-') + '-' + Date.now(),
-      name: newProject.name,
-      description: newProject.description,
-      startDate: newProject.startDate,
-      endDate: newProject.endDate,
-      status: newProject.status,
-      progress: 0,
-      bugs: 0,
-      team: 1,
-      shareToken: generateShareToken(),
-      createdAt: new Date().toISOString(),
-      isCustom: true // Mark as custom project
-    };
+    try {
+      console.log('➕ Creating new project in Supabase...');
 
-    // Add to current projects state
-    const updatedProjects = [...projects, project];
-    setProjects(updatedProjects);
+      const projectId = newProject.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
 
-    // Save only custom projects to localStorage
-    const customProjects = updatedProjects.filter(p => p.isCustom);
-    localStorage.setItem('customProjects', JSON.stringify(customProjects));
+      const projectData = {
+        id: projectId,
+        name: newProject.name,
+        client: newProject.client || 'New Client',
+        description: newProject.description || '',
+        status: newProject.status || 'planning',
+        priority: parseInt(newProject.priority) || 2,
+        progress: 0,
+        starred: false,
+        deadline: newProject.endDate || null,
+        team_count: parseInt(newProject.team) || 1,
+        url: newProject.url || null,
+        category: newProject.category || 'Other',
+        is_custom: true
+      };
 
-    setShowNewProjectModal(false);
-    setNewProject({ name: '', description: '', startDate: '', endDate: '', status: 'planning' });
-    toast.success('Project created successfully!');
+      // Save to Supabase
+      const savedProject = await adminProjectService.createProject(projectData);
+
+      if (savedProject) {
+        console.log('✅ Project saved to database:', savedProject.id);
+
+        // Reload projects from database
+        await loadProjectsFromDatabase();
+
+        setShowNewProjectModal(false);
+        setNewProject({
+          name: '',
+          description: '',
+          client: '',
+          startDate: '',
+          endDate: '',
+          status: 'planning',
+          priority: 2,
+          team: 1,
+          category: 'Other',
+          url: ''
+        });
+        toast.success('Project created successfully!');
+      }
+    } catch (error) {
+      console.error('❌ Error creating project:', error);
+      toast.error('Failed to create project. Please try again.');
+    }
   };
 
   const generateShareToken = () => {
     return 'share-' + Math.random().toString(36).substr(2, 9);
   };
 
-  const handleDeleteProject = (projectId) => {
+  const handleDeleteProject = async (projectId) => {
     const projectToDelete = projects.find(p => p.id === projectId);
 
-    // Prevent deleting system projects
-    if (!projectToDelete?.isCustom) {
-      toast.error('Cannot delete system projects. Only custom projects can be deleted.');
+    if (!projectToDelete) {
+      toast.error('Project not found');
       return;
     }
 
-    if (window.confirm('Are you sure you want to delete this custom project?')) {
-      const updatedProjects = projects.filter(p => p.id !== projectId);
-      setProjects(updatedProjects);
+    const confirmMessage = projectToDelete.isCustom
+      ? 'Are you sure you want to delete this custom project?'
+      : 'Are you sure you want to delete this project? This will remove it from the database.';
 
-      // Update only custom projects in localStorage
-      const customProjects = updatedProjects.filter(p => p.isCustom);
-      localStorage.setItem('customProjects', JSON.stringify(customProjects));
+    if (window.confirm(confirmMessage)) {
+      try {
+        console.log('🗑️ Deleting project from Supabase:', projectId);
 
-      toast.success('Project deleted successfully');
+        const success = await adminProjectService.deleteProject(projectId);
+
+        if (success) {
+          console.log('✅ Project deleted from database');
+
+          // Reload projects from database
+          await loadProjectsFromDatabase();
+
+          toast.success('Project deleted successfully');
+        } else {
+          throw new Error('Delete operation failed');
+        }
+      } catch (error) {
+        console.error('❌ Error deleting project:', error);
+        toast.error('Failed to delete project. Please try again.');
+      }
     }
   };
 

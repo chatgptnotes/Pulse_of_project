@@ -263,7 +263,7 @@ const EditableProjectDashboard: React.FC<EditableProjectDashboardProps> = ({ pro
     return 'Developer';
   };
 
-  const handleMilestoneUpdate = (updatedMilestone: ProjectMilestone) => {
+  const handleMilestoneUpdate = async (updatedMilestone: ProjectMilestone) => {
     const updatedMilestones = projectData.milestones.map(m =>
       m.id === updatedMilestone.id ? updatedMilestone : m
     );
@@ -271,12 +271,56 @@ const EditableProjectDashboard: React.FC<EditableProjectDashboardProps> = ({ pro
     // Recalculate overall progress
     const totalProgress = updatedMilestones.reduce((sum, m) => sum + m.progress, 0) / updatedMilestones.length;
 
-    setProjectData({
+    const newProjectData = {
       ...projectData,
       milestones: updatedMilestones,
       overallProgress: Math.round(totalProgress)
-    });
+    };
+
+    setProjectData(newProjectData);
     setHasUnsavedChanges(true);
+
+    // Save to localStorage immediately
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(newProjectData));
+      console.log('💾 Milestone saved to localStorage');
+    } catch (err) {
+      console.error('Failed to save to localStorage:', err);
+    }
+
+    // Save to Supabase
+    try {
+      const milestoneData = {
+        project_id: projectData.id,
+        name: updatedMilestone.name,
+        description: updatedMilestone.description,
+        status: updatedMilestone.status,
+        start_date: updatedMilestone.startDate instanceof Date
+          ? updatedMilestone.startDate.toISOString()
+          : new Date(updatedMilestone.startDate).toISOString(),
+        end_date: updatedMilestone.endDate instanceof Date
+          ? updatedMilestone.endDate.toISOString()
+          : new Date(updatedMilestone.endDate).toISOString(),
+        progress: updatedMilestone.progress,
+        deliverables: updatedMilestone.deliverables,
+        assigned_to: updatedMilestone.assignedTo || [],
+        dependencies: updatedMilestone.dependencies || [],
+        order: updatedMilestone.order || 0,
+        color: updatedMilestone.color || '#4F46E5'
+      };
+
+      const success = await ProjectTrackingService.updateMilestone(updatedMilestone.id, milestoneData);
+
+      if (success) {
+        toast.success('Milestone updated and saved to database');
+        console.log('✅ Milestone saved to Supabase:', updatedMilestone.id);
+      } else {
+        toast.error('Failed to save to database (saved locally)');
+      }
+    } catch (error) {
+      console.error('Error saving milestone to Supabase:', error);
+      toast.error('Failed to save to database (saved locally)');
+    }
   };
 
   const handleDeliverableToggle = useCallback(async (milestoneId: string, deliverableId: string) => {

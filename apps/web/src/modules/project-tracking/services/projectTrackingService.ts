@@ -87,12 +87,85 @@ export class ProjectTrackingService {
 
   static async updateMilestone(milestoneId: string, updates: Partial<ProjectMilestone>): Promise<boolean> {
     try {
-      const { error } = await supabaseService.supabase
+      // First, try to fetch the current milestone to see if it exists
+      const { data: existingMilestone, error: fetchError } = await supabaseService.supabase
+        .from('project_milestones')
+        .select('id, project_id')
+        .eq('id', milestoneId)
+        .single();
+
+      // If milestone doesn't exist, create it
+      if (fetchError && fetchError.code === 'PGRST116') {
+        console.log('Milestone not found, creating it...');
+
+        // Ensure project exists first
+        const projectId = (updates as any).project_id || 'neurosense-mvp';
+        const { data: project, error: projectError } = await supabaseService.supabase
+          .from('projects')
+          .select('id')
+          .eq('id', projectId)
+          .single();
+
+        if (projectError && projectError.code === 'PGRST116') {
+          // Create project first
+          const { error: createProjectError } = await supabaseService.supabase
+            .from('projects')
+            .insert({
+              id: projectId,
+              name: 'NeuroSense360 MVP',
+              description: 'Full-stack NeuroSense360 application',
+              client: 'Dr. Murali BK',
+              start_date: new Date().toISOString(),
+              end_date: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString(),
+              status: 'active',
+              overall_progress: 0
+            });
+
+          if (createProjectError) {
+            console.error('Failed to create project:', createProjectError);
+            return false;
+          }
+          console.log('✅ Project created:', projectId);
+        }
+
+        // Create the milestone
+        const { error: createError } = await supabaseService.supabase
+          .from('project_milestones')
+          .insert({
+            id: milestoneId,
+            project_id: projectId,
+            name: (updates as any).name || 'New Phase',
+            description: (updates as any).description || '',
+            status: (updates as any).status || 'pending',
+            start_date: (updates as any).start_date || new Date().toISOString(),
+            end_date: (updates as any).end_date || new Date().toISOString(),
+            progress: (updates as any).progress || 0,
+            deliverables: (updates as any).deliverables || [],
+            assigned_to: (updates as any).assigned_to || [],
+            dependencies: (updates as any).dependencies || [],
+            order: (updates as any).order || 0,
+            color: (updates as any).color || '#4F46E5'
+          });
+
+        if (createError) {
+          console.error('Failed to create milestone:', createError);
+          return false;
+        }
+
+        console.log('✅ Milestone created successfully:', milestoneId);
+        return true;
+      } else if (fetchError) {
+        throw fetchError;
+      }
+
+      // Milestone exists, update it
+      const { error: updateError } = await supabaseService.supabase
         .from('project_milestones')
         .update(updates)
         .eq('id', milestoneId);
 
-      if (error) throw error;
+      if (updateError) throw updateError;
+      console.log('✅ Milestone updated successfully:', milestoneId);
       return true;
     } catch (error) {
       console.error('Error updating milestone:', error);
