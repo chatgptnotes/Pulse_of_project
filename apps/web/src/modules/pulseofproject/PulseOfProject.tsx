@@ -48,7 +48,7 @@ const PulseOfProject: React.FC<PulseOfProjectProps> = ({
   const [lastSync, setLastSync] = useState(new Date());
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'success' | 'error'>('idle');
   const [notifications, setNotifications] = useState<Array<any>>([]);
-  const [showChat, setShowChat] = useState(true);
+  const [showChat, setShowChat] = useState(false); // Chat hidden by default
   const [bugs, setBugs] = useState([]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Collapsed by default
   const [integrations, setIntegrations] = useState({
@@ -232,7 +232,8 @@ const PulseOfProject: React.FC<PulseOfProjectProps> = ({
         }
       } catch (error) {
         console.error('❌ [PulseOfProject] Error loading project data:', error);
-        toast.error('Failed to load project data from database');
+        // Silently use fallback data instead of showing error
+        console.log('ℹ️ [PulseOfProject] Using fallback project data');
 
         // Fallback to dummy data on error
         import('./data/projects').then(({ projects }) => {
