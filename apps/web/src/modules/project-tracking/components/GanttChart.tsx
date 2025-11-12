@@ -313,10 +313,10 @@ const GanttChart: React.FC<GanttChartProps> = ({
                 className={`text-sm flex-1 ${
                   deliverable.completed
                     ? 'text-gray-500 line-through'
-                    : 'text-gray-700'
+                    : 'text-gray-900'
                 }`}
               >
-                {deliverable.text}
+                {typeof deliverable === 'string' ? deliverable : deliverable.text}
               </span>
             </div>
           ))}

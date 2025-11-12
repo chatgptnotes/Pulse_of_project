@@ -55,18 +55,37 @@ const EditableMilestone: React.FC<EditableMilestoneProps> = ({
   const handleAddDeliverable = () => {
     const newDeliverable = prompt('Enter new deliverable:');
     if (newDeliverable) {
+      const newDeliverableObj = {
+        id: `deliverable-${Date.now()}`,
+        text: newDeliverable,
+        completed: false
+      };
+      const updatedDeliverables = [...editedMilestone.deliverables, newDeliverableObj];
       setEditedMilestone({
         ...editedMilestone,
-        deliverables: [...editedMilestone.deliverables, newDeliverable]
+        deliverables: updatedDeliverables
       });
+      // Auto-save immediately when deliverable is added
+      const updatedMilestone = {
+        ...editedMilestone,
+        deliverables: updatedDeliverables
+      };
+      onUpdate(updatedMilestone);
     }
   };
 
   const handleRemoveDeliverable = (index: number) => {
+    const updatedDeliverables = editedMilestone.deliverables.filter((_, i) => i !== index);
     setEditedMilestone({
       ...editedMilestone,
-      deliverables: editedMilestone.deliverables.filter((_, i) => i !== index)
+      deliverables: updatedDeliverables
     });
+    // Auto-save immediately when deliverable is removed
+    const updatedMilestone = {
+      ...editedMilestone,
+      deliverables: updatedDeliverables
+    };
+    onUpdate(updatedMilestone);
   };
 
   const handleAddKPI = () => {
@@ -296,9 +315,9 @@ const EditableMilestone: React.FC<EditableMilestoneProps> = ({
         </div>
         <div className="space-y-1">
           {editedMilestone.deliverables.map((deliverable, index) => (
-            <div key={index} className="flex items-center gap-2">
+            <div key={typeof deliverable === 'string' ? index : deliverable.id || index} className="flex items-center gap-2">
               <Check className="w-3 h-3 text-green-500" />
-              <span className="text-sm flex-1">
+              <span className="text-sm flex-1 text-gray-900">
                 {typeof deliverable === 'string' ? deliverable : deliverable.text}
               </span>
               {isEditing && (
