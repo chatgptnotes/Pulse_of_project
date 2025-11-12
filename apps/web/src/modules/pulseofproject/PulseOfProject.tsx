@@ -82,8 +82,16 @@ const PulseOfProject: React.FC<PulseOfProjectProps> = ({
         console.log('📦 [PulseOfProject] Database response:', {
           hasProject: !!dbProject,
           hasMilestones: !!dbProject?.milestones,
-          milestonesCount: dbProject?.milestones?.length || 0
+          milestonesCount: dbProject?.milestones?.length || 0,
+          fullDbProject: dbProject
         });
+
+        // Log raw data to see what we're getting
+        if (dbProject) {
+          console.log('🔍 Raw database project:', JSON.stringify(dbProject, null, 2));
+        } else {
+          console.log('⚠️ dbProject is null or undefined!');
+        }
 
         // If project doesn't exist, create it with default data
         if (!dbProject) {
