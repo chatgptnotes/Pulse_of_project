@@ -70,11 +70,10 @@ const PulseOfProject: React.FC<PulseOfProjectProps> = ({
     setBugs([]); // Clear bugs array when project changes
   }, [selectedProject]);
 
-  // Load project data based on selected project
-  useEffect(() => {
-    const loadProjectData = async () => {
-      const dbProjectId = getDbProjectId(selectedProject);
-      console.log('🔍 [PulseOfProject] Loading project data for:', selectedProject, '-> DB ID:', dbProjectId);
+  // Shared function to load project data
+  const loadProjectData = useCallback(async () => {
+    const dbProjectId = getDbProjectId(selectedProject);
+    console.log('🔍 [PulseOfProject] Loading project data for:', selectedProject, '-> DB ID:', dbProjectId);
 
       try {
         // First, try to load project data from the database
@@ -116,8 +115,23 @@ const PulseOfProject: React.FC<PulseOfProjectProps> = ({
           console.log('📊 Milestones with deliverables:', dbProject.milestones.map((m: any) => ({
             id: m.id,
             name: m.name,
-            deliverables: m.deliverables?.length || 0
+            deliverablesCount: m.deliverables?.length || 0,
+            deliverables: m.deliverables
           })));
+
+          // Log each milestone's deliverables in detail
+          dbProject.milestones.forEach((m: any) => {
+            console.log(`\n📋 ${m.name}:`);
+            if (m.deliverables && m.deliverables.length > 0) {
+              m.deliverables.forEach((d: any, index: number) => {
+                const text = typeof d === 'string' ? d : d.text;
+                const completed = typeof d === 'string' ? false : d.completed;
+                console.log(`   ${index + 1}. [${completed ? '✓' : ' '}] ${text}`);
+              });
+            } else {
+              console.log('   (No deliverables)');
+            }
+          });
 
           // Convert database milestones to the expected format
           const milestones = dbProject.milestones.map((m: any) => ({
@@ -307,10 +321,12 @@ const PulseOfProject: React.FC<PulseOfProjectProps> = ({
           }
         });
       }
-    };
-
-    loadProjectData();
   }, [selectedProject]);
+
+  // useEffect to call loadProjectData
+  useEffect(() => {
+    loadProjectData();
+  }, [selectedProject, loadProjectData]);
 
   // Navigate to detailed project tracking page
   const goToDetailedView = () => {
@@ -908,6 +924,20 @@ const PulseOfProject: React.FC<PulseOfProjectProps> = ({
 
           {/* Gantt Chart */}
           <div className="mt-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold">Project Timeline</h2>
+              <button
+                onClick={() => {
+                  console.log('🔄 Manual refresh clicked');
+                  loadProjectData();
+                  toast.success('Refreshing project data...');
+                }}
+                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+              >
+                <RefreshCw className="w-4 h-4" />
+                Refresh Data
+              </button>
+            </div>
             <GanttChart
               data={{
                 milestones: projectData.milestones,
