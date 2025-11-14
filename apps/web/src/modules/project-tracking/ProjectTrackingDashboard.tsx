@@ -117,7 +117,7 @@ const ProjectTrackingDashboard: React.FC = () => {
         start_date: milestone.startDate instanceof Date ? milestone.startDate.toISOString() : new Date(milestone.startDate).toISOString(),
         end_date: milestone.endDate instanceof Date ? milestone.endDate.toISOString() : new Date(milestone.endDate).toISOString(),
         progress: milestone.progress,
-        deliverables: milestone.deliverables,
+        deliverables: milestone.deliverables || [], // Save WITH completed field
         assigned_to: milestone.assignedTo || [],
         dependencies: milestone.dependencies || [],
         order: milestone.order,

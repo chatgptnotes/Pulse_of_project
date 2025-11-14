@@ -53,7 +53,7 @@ const EditableProjectDashboard: React.FC<EditableProjectDashboardProps> = ({ pro
     const initializeData = async () => {
       setIsLoading(true);
       try {
-        loadProjectData();
+        await loadProjectData();
         checkEditLock();
         // Wait a tick for state to update
         await new Promise(resolve => setTimeout(resolve, 0));
@@ -84,114 +84,120 @@ const EditableProjectDashboard: React.FC<EditableProjectDashboardProps> = ({ pro
     };
   }, []);
 
-  const loadProjectData = () => {
+  const loadProjectData = async () => {
     try {
-      const savedData = localStorage.getItem(STORAGE_KEY);
-      const savedTimestamp = localStorage.getItem(LAST_SAVED_KEY);
+      console.log('🔄 Loading project data from Supabase database...');
 
-      if (savedData) {
-        try {
-          const parsedData = JSON.parse(savedData);
+      // Load from Supabase ONLY
+      const supabaseProject = await ProjectTrackingService.getProject(projectId);
 
-          // Additional validation to catch corrupted data
-          if (typeof parsedData !== 'object' || parsedData === null) {
-            console.error('Corrupted data detected: not an object');
-            throw new Error('Invalid data structure');
-          }
+      if (supabaseProject) {
+        console.log('✅ Loaded project from Supabase:', supabaseProject);
 
-          // Validate that parsedData has required properties
-          if (!parsedData || !parsedData.milestones || !parsedData.tasks) {
-            throw new Error('Invalid data structure');
-          }
-
-          // Convert date strings back to Date objects with validation
-          parsedData.startDate = new Date(parsedData.startDate);
-          parsedData.endDate = new Date(parsedData.endDate);
-
-          // Validate dates
-          if (isNaN(parsedData.startDate.getTime()) || isNaN(parsedData.endDate.getTime())) {
-            throw new Error('Invalid dates in saved data');
-          }
-
-          parsedData.milestones = parsedData.milestones.map((m: any) => ({
+        // Convert database format to app format
+        const projectData: ProjectData = {
+          ...supabaseProject,
+          startDate: new Date(supabaseProject.start_date || supabaseProject.startDate),
+          endDate: new Date(supabaseProject.end_date || supabaseProject.endDate),
+          overallProgress: supabaseProject.overall_progress || supabaseProject.overallProgress || 0,
+          milestones: (supabaseProject.milestones || []).map((m: any) => ({
             ...m,
-            startDate: new Date(m.startDate),
-            endDate: new Date(m.endDate)
-          }));
-          parsedData.tasks = parsedData.tasks.map((t: any) => ({
-            ...t,
-            startDate: new Date(t.startDate),
-            endDate: new Date(t.endDate)
-          }));
-
-          // Check if this is old data (starts before Nov 1, 2025)
-          if (parsedData.startDate < new Date('2025-11-01')) {
-            toast('Detected old timeline. Click the red reset button to update to Nov 1 start date.', {
-              icon: 'ℹ️',
-            });
-          }
-
-          setProjectData(parsedData);
-          toast.success('Project data loaded from local storage');
-        } catch (parseError) {
-          console.warn('Corrupted saved data, using defaults:', parseError);
-          // Clear corrupted data
-          localStorage.removeItem(STORAGE_KEY);
-
-          // Load defaults
-          const customizedData = {
-            ...defaultProjectData,
-            id: projectId,
-            name: projectId.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
-          };
-          setProjectData(customizedData);
-          toast(`Loaded default project timeline for ${customizedData.name} (corrupted data cleared)`, {
-            icon: 'ℹ️',
-          });
-        }
-      } else {
-        // No saved data, use default which starts Nov 1 and customize for this project
-        const customizedData = {
-          ...defaultProjectData,
-          id: projectId,
-          name: projectId.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
+            startDate: new Date(m.start_date || m.startDate),
+            endDate: new Date(m.end_date || m.endDate),
+            assignedTo: m.assigned_to || m.assignedTo || [],
+            deliverables: m.deliverables || [],
+          })),
+          tasks: supabaseProject.tasks || [],
+          team: supabaseProject.team || [],
+          risks: supabaseProject.risks || []
         };
-        setProjectData(customizedData);
-        toast(`Loaded default project timeline for ${customizedData.name} (Nov 1, 2025 - Jan 10, 2026)`, {
-          icon: 'ℹ️',
-        });
+
+        setProjectData(projectData);
+        toast.success(`✅ Loaded from database: ${projectData.milestones.length} milestones`);
+        return;
       }
 
-      if (savedTimestamp) {
-        try {
-          setLastSaved(new Date(savedTimestamp));
-        } catch (e) {
-          // Ignore invalid timestamp
-        }
-      }
-    } catch (error) {
-      console.error('Failed to load project data:', error);
-      // Don't show error toast, just use defaults
+      console.log('⚠️ No data in Supabase, loading default template...');
+
+      // No data in database, use default template
       const customizedData = {
         ...defaultProjectData,
         id: projectId,
         name: projectId.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
       };
       setProjectData(customizedData);
-      toast(`Using default project timeline for ${customizedData.name}`, {
-        icon: 'ℹ️',
-      });
+      toast.info(`📋 Using default template for ${customizedData.name}. Click Save to store in database.`);
+
+    } catch (error) {
+      console.error('❌ Failed to load project data:', error);
+
+      // Use defaults on error
+      const customizedData = {
+        ...defaultProjectData,
+        id: projectId,
+        name: projectId.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
+      };
+      setProjectData(customizedData);
+      toast.error(`Failed to load from database. Using default template.`);
     }
   };
 
-  const saveProjectData = () => {
+  const saveProjectData = async () => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(projectData));
       const now = new Date();
-      localStorage.setItem(LAST_SAVED_KEY, now.toISOString());
-      setLastSaved(now);
-      setHasUnsavedChanges(false);
-      toast.success('Project data saved successfully');
+      console.log('💾 Saving project data to Supabase database...');
+
+      // Save project metadata to database
+      const projectUpdateSuccess = await ProjectTrackingService.updateProject(projectData.id, {
+        name: projectData.name,
+        description: projectData.description,
+        client: projectData.client,
+        start_date: projectData.startDate.toISOString(),
+        end_date: projectData.endDate.toISOString(),
+        status: projectData.status,
+        overall_progress: projectData.overallProgress
+      });
+
+      // Save all milestones to database WITH deliverables
+      let milestoneSaveCount = 0;
+      for (const milestone of projectData.milestones) {
+        const milestoneData = {
+          project_id: projectData.id,
+          name: milestone.name,
+          description: milestone.description,
+          status: milestone.status,
+          start_date: milestone.startDate instanceof Date
+            ? milestone.startDate.toISOString()
+            : new Date(milestone.startDate).toISOString(),
+          end_date: milestone.endDate instanceof Date
+            ? milestone.endDate.toISOString()
+            : new Date(milestone.endDate).toISOString(),
+          progress: milestone.progress,
+          deliverables: milestone.deliverables || [], // Save WITH completed field
+          assigned_to: milestone.assignedTo || [],
+          dependencies: milestone.dependencies || [],
+          order: milestone.order || 0,
+          color: milestone.color || '#4F46E5'
+        };
+
+        const success = await ProjectTrackingService.updateMilestone(milestone.id, milestoneData);
+        if (success) {
+          milestoneSaveCount++;
+        }
+      }
+
+      if (projectUpdateSuccess && milestoneSaveCount === projectData.milestones.length) {
+        toast.success(`✅ Saved to database: ${milestoneSaveCount} milestones`);
+        console.log(`✅ Successfully saved ${milestoneSaveCount} milestones to Supabase`);
+        setLastSaved(now);
+        setHasUnsavedChanges(false);
+      } else if (milestoneSaveCount > 0) {
+        toast.warning(`⚠️ Partially saved: ${milestoneSaveCount}/${projectData.milestones.length} milestones`);
+        setLastSaved(now);
+        setHasUnsavedChanges(false);
+      } else {
+        toast.error('❌ Failed to save to database');
+      }
 
       // Create an update entry
       const update: ProjectUpdate = {
@@ -200,14 +206,14 @@ const EditableProjectDashboard: React.FC<EditableProjectDashboardProps> = ({ pro
         userId: getCurrentUserId(),
         userName: getCurrentUserName(),
         type: 'general',
-        title: 'Project Data Updated',
-        description: `Project data has been updated and saved`,
+        title: 'Project Data Saved to Database',
+        description: `Project data has been saved to Supabase database`,
         timestamp: now
       };
       setUpdates(prev => [update, ...prev]);
     } catch (error) {
-      console.error('Failed to save project data:', error);
-      toast.error('Failed to save data');
+      console.error('❌ Failed to save project data:', error);
+      toast.error('❌ Failed to save data to database');
     }
   };
 
@@ -280,16 +286,10 @@ const EditableProjectDashboard: React.FC<EditableProjectDashboardProps> = ({ pro
     setProjectData(newProjectData);
     setHasUnsavedChanges(true);
 
-    // Save to localStorage immediately
+    // Save to Supabase database immediately
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(newProjectData));
-      console.log('💾 Milestone saved to localStorage');
-    } catch (err) {
-      console.error('Failed to save to localStorage:', err);
-    }
+      console.log('💾 Saving milestone to Supabase database...');
 
-    // Save to Supabase
-    try {
       const milestoneData = {
         project_id: projectData.id,
         name: updatedMilestone.name,
@@ -302,7 +302,7 @@ const EditableProjectDashboard: React.FC<EditableProjectDashboardProps> = ({ pro
           ? updatedMilestone.endDate.toISOString()
           : new Date(updatedMilestone.endDate).toISOString(),
         progress: updatedMilestone.progress,
-        deliverables: updatedMilestone.deliverables,
+        deliverables: updatedMilestone.deliverables, // Save WITH completed field
         assigned_to: updatedMilestone.assignedTo || [],
         dependencies: updatedMilestone.dependencies || [],
         order: updatedMilestone.order || 0,
@@ -312,14 +312,14 @@ const EditableProjectDashboard: React.FC<EditableProjectDashboardProps> = ({ pro
       const success = await ProjectTrackingService.updateMilestone(updatedMilestone.id, milestoneData);
 
       if (success) {
-        toast.success('Milestone updated and saved to database');
+        toast.success('✅ Milestone saved to database');
         console.log('✅ Milestone saved to Supabase:', updatedMilestone.id);
       } else {
-        toast.error('Failed to save to database (saved locally)');
+        toast.error('❌ Failed to save milestone to database');
       }
     } catch (error) {
-      console.error('Error saving milestone to Supabase:', error);
-      toast.error('Failed to save to database (saved locally)');
+      console.error('❌ Error saving milestone to Supabase:', error);
+      toast.error('❌ Failed to save milestone to database');
     }
   };
 
@@ -327,9 +327,8 @@ const EditableProjectDashboard: React.FC<EditableProjectDashboardProps> = ({ pro
     console.log('=== handleDeliverableToggle CALLED IN PARENT ===');
     console.log('Parent received - milestoneId:', milestoneId, 'deliverableId:', deliverableId);
 
-    // Use a variable to capture the updated milestone data AND full project data
-    let updatedMilestoneData: any = null;
-    let newProjectData: ProjectData | null = null;
+    // Use a variable to capture deliverable info for database save
+    let deliverableInfo: { text: string; completed: boolean } | null = null;
 
     // Use setProjectData with functional update to get latest state
     setProjectData((prevData) => {
@@ -340,76 +339,70 @@ const EditableProjectDashboard: React.FC<EditableProjectDashboardProps> = ({ pro
         return prevData;
       }
 
-      const updatedDeliverables = milestone.deliverables.map(deliverable =>
-        deliverable.id === deliverableId
-          ? { ...deliverable, completed: !deliverable.completed }
-          : deliverable
-      );
+      const updatedDeliverables = milestone.deliverables.map(deliverable => {
+        if (deliverable.id === deliverableId) {
+          const newCompleted = !deliverable.completed;
+          // Capture deliverable info for database save
+          deliverableInfo = { text: deliverable.text, completed: newCompleted };
+          return { ...deliverable, completed: newCompleted };
+        }
+        return deliverable;
+      });
 
       const updatedMilestone = { ...milestone, deliverables: updatedDeliverables };
-
-      // Capture the updated milestone data for database save
-      updatedMilestoneData = {
-        project_id: prevData.id,
-        name: updatedMilestone.name,
-        description: updatedMilestone.description,
-        status: updatedMilestone.status,
-        start_date: updatedMilestone.startDate instanceof Date ? updatedMilestone.startDate.toISOString() : new Date(updatedMilestone.startDate).toISOString(),
-        end_date: updatedMilestone.endDate instanceof Date ? updatedMilestone.endDate.toISOString() : new Date(updatedMilestone.endDate).toISOString(),
-        progress: updatedMilestone.progress,
-        deliverables: updatedDeliverables, // Use the NEW updated deliverables
-        assigned_to: updatedMilestone.assignedTo || [],
-        dependencies: updatedMilestone.dependencies || [],
-        order: updatedMilestone.order,
-        color: updatedMilestone.color || '#4F46E5'
-      };
 
       const updatedMilestones = prevData.milestones.map(m =>
         m.id === milestoneId ? updatedMilestone : m
       );
 
       console.log('✅ Updated deliverables for milestone:', updatedDeliverables);
-      console.log('Setting updated project data...');
 
-      // Capture the new project data for localStorage save
-      newProjectData = {
+      return {
         ...prevData,
         milestones: updatedMilestones
       };
-
-      return newProjectData;
     });
 
     setHasUnsavedChanges(true);
-    console.log('Local state updated!');
+    console.log('✅ Local state updated!');
 
-    // CRITICAL FIX: Save to localStorage with the captured updated data
-    if (newProjectData) {
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(newProjectData));
-        console.log('💾 Saved to localStorage for persistence');
-        console.log('Saved deliverables:', newProjectData.milestones.find(m => m.id === milestoneId)?.deliverables);
-      } catch (err) {
-        console.error('Failed to save to localStorage:', err);
-      }
-    }
-
-    // Save to Supabase with the UPDATED milestone data
+    // Save milestone with updated deliverables to project_milestones table
     try {
-      if (updatedMilestoneData) {
-        console.log('💾 Saving to database:', updatedMilestoneData.deliverables);
-        const success = await ProjectTrackingService.toggleDeliverable(milestoneId, deliverableId, updatedMilestoneData);
+      const milestone = projectData.milestones.find(m => m.id === milestoneId);
+      if (milestone) {
+        console.log('💾 Saving milestone with updated deliverables');
+
+        const milestoneData = {
+          project_id: projectData.id,
+          name: milestone.name,
+          description: milestone.description,
+          status: milestone.status,
+          start_date: milestone.startDate instanceof Date
+            ? milestone.startDate.toISOString()
+            : new Date(milestone.startDate).toISOString(),
+          end_date: milestone.endDate instanceof Date
+            ? milestone.endDate.toISOString()
+            : new Date(milestone.endDate).toISOString(),
+          progress: milestone.progress,
+          deliverables: milestone.deliverables, // Save WITH completed field
+          assigned_to: milestone.assignedTo || [],
+          dependencies: milestone.dependencies || [],
+          order: milestone.order || 0,
+          color: milestone.color || '#4F46E5'
+        };
+
+        const success = await ProjectTrackingService.updateMilestone(milestoneId, milestoneData);
         if (success) {
-          toast.success('Deliverable status saved');
+          toast.success('✅ Deliverable saved to database');
         } else {
-          toast.error('Failed to save to database (saved locally)');
+          toast.error('❌ Failed to save deliverable to database');
         }
       }
     } catch (error) {
-      console.error('Error saving deliverable to Supabase:', error);
-      toast.error('Failed to save to database (saved locally)');
+      console.error('❌ Error saving deliverable to Supabase:', error);
+      toast.error('❌ Failed to save deliverable to database');
     }
-  }, [STORAGE_KEY]); // Include STORAGE_KEY in deps
+  }, [projectData.id, projectData.milestones]); // Need both
 
   const handleAddTask = (task: Omit<ProjectTask, 'id'>) => {
     const newTask: ProjectTask = {

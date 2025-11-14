@@ -386,18 +386,83 @@ class DocumentStorageService {
    */
   async getProjectDocuments(projectId: string): Promise<DocumentMetadata[]> {
     try {
-      const { data, error } = await this.supabase
+      // Fetch from database
+      const { data: dbDocs, error } = await this.supabase
         .from('project_documents')
         .select('*')
         .eq('project_id', projectId)
         .order('uploaded_at', { ascending: false });
 
       if (error) {
-        console.error('❌ Error fetching documents:', error);
-        return [];
+        console.error('❌ Error fetching documents from database:', error);
       }
 
-      return data as DocumentMetadata[];
+      // ALSO fetch directly from bucket to show ALL files
+      console.log('📦 Fetching files from bucket for project:', projectId);
+      const { data: bucketFiles, error: bucketError } = await this.supabase.storage
+        .from(BUCKET_NAME)
+        .list(projectId, {
+          limit: 100,
+          sortBy: { column: 'created_at', order: 'desc' }
+        });
+
+      if (bucketError) {
+        console.error('❌ Error fetching from bucket:', bucketError);
+        return (dbDocs as DocumentMetadata[]) || [];
+      }
+
+      console.log(`✅ Found ${bucketFiles?.length || 0} files in bucket`);
+
+      // Create a map of database documents by file_path for quick lookup
+      const dbDocsMap = new Map<string, DocumentMetadata>();
+      (dbDocs || []).forEach(doc => {
+        if (doc.file_path) {
+          dbDocsMap.set(doc.file_path, doc as DocumentMetadata);
+        }
+      });
+
+      // Merge bucket files with database records
+      const allDocuments: DocumentMetadata[] = [];
+
+      bucketFiles?.forEach(file => {
+        const filePath = `${projectId}/${file.name}`;
+        const dbDoc = dbDocsMap.get(filePath);
+
+        if (dbDoc) {
+          // Use database record if exists
+          allDocuments.push(dbDoc);
+          dbDocsMap.delete(filePath); // Remove from map so we don't add duplicates
+        } else {
+          // Create a document entry from bucket file (no database record)
+          console.log(`📄 Adding file from bucket without DB record: ${file.name}`);
+          const fileExtension = file.name.split('.').pop()?.toLowerCase() || '';
+          allDocuments.push({
+            id: file.id || `bucket-${file.name}`,
+            project_id: projectId,
+            filename: file.name,
+            file_path: filePath,
+            file_size: file.metadata?.size || 0,
+            file_type: this.getFileType(fileExtension),
+            mime_type: file.metadata?.mimetype,
+            uploaded_by: 'Unknown',
+            uploaded_at: file.created_at,
+            updated_at: file.updated_at,
+            description: 'File from bucket (no database record)',
+            is_public: false
+          });
+        }
+      });
+
+      // Add any remaining database documents that weren't matched (external links, etc.)
+      dbDocsMap.forEach(doc => {
+        if (doc.is_external_link || !doc.file_path?.startsWith(projectId)) {
+          allDocuments.push(doc);
+        }
+      });
+
+      console.log(`📊 Total documents: ${allDocuments.length} (${bucketFiles?.length || 0} from bucket, ${dbDocs?.length || 0} from DB)`);
+
+      return allDocuments;
 
     } catch (error) {
       console.error('❌ Failed to fetch documents:', error);

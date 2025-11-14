@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   FileText, Upload, Download, Trash2, File,
   FolderGit2, User, Calendar, Search, Loader2, AlertCircle,
-  Link as LinkIcon, X, ExternalLink, MessageSquare
+  Link as LinkIcon, X, ExternalLink, MessageSquare, RefreshCw
 } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -52,6 +52,27 @@ const ProjectDocuments: React.FC<ProjectDocumentsProps> = ({ projectId, isEditMo
   // Load documents from Supabase on mount
   useEffect(() => {
     loadDocuments();
+  }, [projectId]);
+
+  // Auto-refresh documents every 30 seconds to keep list updated
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      console.log('🔄 Auto-refreshing documents...');
+      loadDocuments();
+    }, 30000); // Refresh every 30 seconds
+
+    return () => clearInterval(intervalId);
+  }, [projectId]);
+
+  // Refresh documents when window regains focus
+  useEffect(() => {
+    const handleFocus = () => {
+      console.log('👀 Window focused - refreshing documents');
+      loadDocuments();
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
   }, [projectId]);
 
   const loadDocuments = async () => {
@@ -307,17 +328,34 @@ const ProjectDocuments: React.FC<ProjectDocumentsProps> = ({ projectId, isEditMo
           {isLoading && <Loader2 className="w-5 h-5 animate-spin text-gray-400" />}
         </h2>
 
-        {/* Upload button visible for all users including clients */}
-        <button
-          onClick={() => setShowUploadModal(true)}
-          disabled={isUploading}
-          className={`px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex items-center gap-2 transition-colors ${
-            isUploading ? 'opacity-50 cursor-not-allowed' : ''
-          }`}
-        >
-          <Upload className="w-4 h-4" />
-          Add Document / Link
-        </button>
+        {/* Upload and Refresh buttons */}
+        <div className="flex gap-2">
+          <button
+            onClick={() => {
+              console.log('🔄 Manual refresh triggered');
+              loadDocuments();
+              toast.success('Refreshing documents...');
+            }}
+            disabled={isLoading}
+            className={`px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 flex items-center gap-2 transition-colors ${
+              isLoading ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
+            title="Refresh document list"
+          >
+            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
+          <button
+            onClick={() => setShowUploadModal(true)}
+            disabled={isUploading}
+            className={`px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 flex items-center gap-2 transition-colors ${
+              isUploading ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
+          >
+            <Upload className="w-4 h-4" />
+            Add Document / Link
+          </button>
+        </div>
       </div>
 
       {/* Storage Info Banner */}

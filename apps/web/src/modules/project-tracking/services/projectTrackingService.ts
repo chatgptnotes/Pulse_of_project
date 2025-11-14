@@ -13,6 +13,8 @@ export class ProjectTrackingService {
   // Projects
   static async getProject(projectId: string): Promise<ProjectData | null> {
     try {
+      console.log('📡 Fetching project from database:', projectId);
+
       // Load project and milestones separately to avoid foreign key issues
       const { data: project, error: projectError } = await supabaseService.supabase
         .from('projects')
@@ -25,6 +27,8 @@ export class ProjectTrackingService {
         return null;
       }
 
+      console.log('✅ Project fetched:', project);
+
       // Load milestones separately
       const { data: milestones, error: milestonesError } = await supabaseService.supabase
         .from('project_milestones')
@@ -35,6 +39,8 @@ export class ProjectTrackingService {
       if (milestonesError) {
         console.error('Error fetching milestones:', milestonesError);
       }
+
+      console.log(`✅ Fetched ${milestones?.length || 0} milestones for project ${projectId}`);
 
       // Combine the data
       return {
@@ -506,5 +512,149 @@ export class ProjectTrackingService {
 
   static unsubscribeFromProjectChanges(projectId: string) {
     return supabaseService.supabase.channel(`project-${projectId}`).unsubscribe();
+  }
+
+  // ==========================================
+  // Deliverable Progress Methods (New Table)
+  // ==========================================
+
+  /**
+   * Get all deliverable progress for a project
+   */
+  static async getDeliverableProgress(projectId: string): Promise<any[]> {
+    try {
+      console.log('📡 Fetching deliverable progress for project:', projectId);
+
+      const { data, error } = await supabaseService.supabase
+        .from('deliverable_progress')
+        .select('*')
+        .eq('project_id', projectId)
+        .order('milestone_id', { ascending: true });
+
+      if (error) {
+        console.error('Error fetching deliverable progress:', error);
+        return [];
+      }
+
+      console.log(`✅ Fetched ${data?.length || 0} deliverable progress records`);
+      return data || [];
+    } catch (error) {
+      console.error('Error in getDeliverableProgress:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Toggle a single deliverable completion status
+   */
+  static async toggleDeliverableProgress(
+    projectId: string,
+    milestoneId: string,
+    deliverableId: string,
+    deliverableText: string,
+    completed: boolean
+  ): Promise<boolean> {
+    try {
+      console.log('💾 Toggling deliverable progress:', {
+        projectId,
+        milestoneId,
+        deliverableId,
+        completed
+      });
+
+      const record = {
+        project_id: projectId,
+        milestone_id: milestoneId,
+        deliverable_id: deliverableId,
+        deliverable_text: deliverableText,
+        completed,
+        completed_at: completed ? new Date().toISOString() : null,
+        completed_by: null // You can add user info here
+      };
+
+      const { data, error } = await supabaseService.supabase
+        .from('deliverable_progress')
+        .upsert(record, {
+          onConflict: 'project_id,milestone_id,deliverable_id'
+        })
+        .select();
+
+      if (error) {
+        console.error('❌ Error saving deliverable progress:', error);
+        return false;
+      }
+
+      console.log('✅ Deliverable progress saved successfully');
+      return true;
+    } catch (error) {
+      console.error('❌ Error in toggleDeliverableProgress:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Get deliverable progress for a specific milestone
+   */
+  static async getDeliverableProgressByMilestone(
+    projectId: string,
+    milestoneId: string
+  ): Promise<any[]> {
+    try {
+      const { data, error } = await supabaseService.supabase
+        .from('deliverable_progress')
+        .select('*')
+        .eq('project_id', projectId)
+        .eq('milestone_id', milestoneId);
+
+      if (error) {
+        console.error('Error fetching milestone deliverable progress:', error);
+        return [];
+      }
+
+      return data || [];
+    } catch (error) {
+      console.error('Error in getDeliverableProgressByMilestone:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Bulk save deliverable progress for a milestone
+   */
+  static async bulkSaveDeliverableProgress(
+    projectId: string,
+    milestoneId: string,
+    deliverables: Array<{ id: string; text: string; completed: boolean }>
+  ): Promise<boolean> {
+    try {
+      console.log(`💾 Bulk saving ${deliverables.length} deliverables for milestone ${milestoneId}`);
+
+      const records = deliverables.map(d => ({
+        project_id: projectId,
+        milestone_id: milestoneId,
+        deliverable_id: d.id,
+        deliverable_text: d.text,
+        completed: d.completed,
+        completed_at: d.completed ? new Date().toISOString() : null,
+        completed_by: null
+      }));
+
+      const { error } = await supabaseService.supabase
+        .from('deliverable_progress')
+        .upsert(records, {
+          onConflict: 'project_id,milestone_id,deliverable_id'
+        });
+
+      if (error) {
+        console.error('❌ Error bulk saving deliverable progress:', error);
+        return false;
+      }
+
+      console.log('✅ Bulk save successful');
+      return true;
+    } catch (error) {
+      console.error('❌ Error in bulkSaveDeliverableProgress:', error);
+      return false;
+    }
   }
 }
