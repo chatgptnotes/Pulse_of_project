@@ -21,16 +21,23 @@ class AdminProjectService {
       const { data, error } = await supabaseService.supabase
         .from(this.tableName)
         .select('*')
-        .order('priority', { ascending: true })
-        .order('progress', { ascending: false });
+        .order('created_at', { ascending: false });
 
       if (error) {
         console.error('❌ Error fetching projects:', error);
+        console.error('Error details:', error);
         throw error;
       }
 
-      console.log(`✅ Fetched ${data?.length || 0} projects from database`);
-      return data || [];
+      // Add default priority if missing
+      const projectsWithPriority = (data || []).map(project => ({
+        ...project,
+        priority: project.priority || 3,
+        id: project.id || project.project_id // Ensure id field exists
+      }));
+
+      console.log(`✅ Fetched ${projectsWithPriority.length} projects from database`);
+      return projectsWithPriority;
     } catch (error) {
       console.error('❌ Error in getAllProjects:', error);
       return [];

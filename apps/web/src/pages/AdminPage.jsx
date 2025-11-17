@@ -55,7 +55,9 @@ const AdminPage = () => {
 
         // Convert database format to AdminPage format
         const convertedProjects = dbProjects.map(p => ({
-          id: p.id,
+          // Prefer text project_id (matches tracking tables); keep DB UUID separately
+          id: p.project_id || p.id,
+          dbId: p.id,
           name: p.name,
           description: p.description || `${p.client} project`,
           startDate: new Date().toISOString().split('T')[0],
@@ -400,8 +402,16 @@ const AdminPage = () => {
             <div className="flex items-center gap-4">
               <div className="hidden md:flex items-center gap-2 px-4 py-2 bg-gray-50 rounded-lg">
                 <Users className="w-4 h-4 text-gray-600" />
-                <span className="text-sm text-gray-700">{user?.name || 'Admin'}</span>
+                <span className="text-sm text-gray-700">{user?.email || user?.name || 'Admin'}</span>
               </div>
+              <button
+                onClick={() => navigate('/users')}
+                className="px-4 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors"
+                title="Manage Users"
+              >
+                <Users className="w-4 h-4 inline mr-2" />
+                Users
+              </button>
               <button
                 onClick={() => navigate('/pulse')}
                 className="px-4 py-2 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 transition-colors"
@@ -675,7 +685,7 @@ const AdminPage = () => {
                 {/* Actions */}
                 <div className="flex items-center gap-2 pt-4 border-t border-gray-200">
                   <button
-                    onClick={() => navigate(`/pulse?project=${project.id}`)}
+                    onClick={() => navigate(`/pulseofproject?project=${project.id}`)}
                     className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 transition-colors text-sm font-medium"
                     title="View PulseOfProject dashboard"
                   >

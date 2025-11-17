@@ -2,8 +2,20 @@ import { createClient } from '@supabase/supabase-js';
 
 // Dedicated Supabase instance for Bug Tracking System
 // This is separate from the main Neuro360 medical database
-const bugTrackingUrl = 'https://winhdjtlwhgdoinfrxch.supabase.co';
-const bugTrackingAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndpbmhkanRsd2hnZG9pbmZyeGNoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjEzNTkwNTQsImV4cCI6MjA3NjkzNTA1NH0.IKxXiHRZiJI4UXfbAiYThXcsvdx04vqx0ejQs8LhkGU';
+// MUST be configured via environment variables
+const bugTrackingUrl = import.meta.env.VITE_BUGTRACKING_SUPABASE_URL ||
+                        import.meta.env.VITE_SUPABASE_URL;
+const bugTrackingAnonKey = import.meta.env.VITE_BUGTRACKING_SUPABASE_ANON_KEY ||
+                           import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+// Validate that credentials are provided
+if (!bugTrackingUrl || !bugTrackingAnonKey) {
+  console.error('❌ BUG TRACKING SUPABASE CREDENTIALS MISSING!');
+  console.error('Please set the following environment variables in your .env file:');
+  console.error('  - VITE_BUGTRACKING_SUPABASE_URL (or VITE_SUPABASE_URL)');
+  console.error('  - VITE_BUGTRACKING_SUPABASE_ANON_KEY (or VITE_SUPABASE_ANON_KEY)');
+  throw new Error('Bug tracking Supabase credentials not found in environment variables. Please check your .env file.');
+}
 
 // Initialize dedicated bug tracking Supabase client
 const bugTrackingSupabase = createClient(bugTrackingUrl, bugTrackingAnonKey, {
@@ -29,7 +41,6 @@ class BugTrackingService {
     this.supabase = bugTrackingSupabase;
     this.isAvailable = true;
     console.log('🐛 Bug Tracking Service initialized with dedicated database');
-    console.log('🔗 Bug Tracking URL:', bugTrackingUrl);
     this.testConnection();
   }
 

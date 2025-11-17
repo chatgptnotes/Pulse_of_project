@@ -12,7 +12,7 @@ export const testSupabaseConnection = async () => {
                           import.meta.env.VITE_BUGTRACKING_SUPABASE_ANON_KEY;
 
   console.log('Environment variables:');
-  console.log('VITE_SUPABASE_URL:', supabaseUrl || 'Using BUGTRACKING variant');
+  console.log('VITE_SUPABASE_URL:', supabaseUrl ? 'Configured ✅' : 'Using BUGTRACKING variant');
   console.log('VITE_SUPABASE_ANON_KEY:', supabaseAnonKey ? 'Present ✅' : 'Missing ❌');
 
   // Check if environment variables are set

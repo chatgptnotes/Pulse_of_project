@@ -66,25 +66,22 @@ const GanttChart: React.FC<GanttChartProps> = ({
   };
 
   const calculatePosition = (startDate: Date, endDate: Date, itemStart: Date, itemEnd: Date) => {
-    // Ensure we're using the correct date range
-    const actualStartDate = startDate < new Date('2025-11-01') ? new Date('2025-11-01') : startDate;
-    const actualEndDate = endDate < new Date('2026-01-24') ? new Date('2026-01-24') : endDate;
-
-    const totalDays = differenceInDays(actualEndDate, actualStartDate);
-    const startDay = differenceInDays(itemStart, actualStartDate);
+    // Use the actual project dates without overriding
+    const totalDays = differenceInDays(endDate, startDate);
+    const startDay = differenceInDays(itemStart, startDate);
     const duration = differenceInDays(itemEnd, itemStart) + 1;
 
-    const left = (startDay / totalDays) * 100;
-    const width = (duration / totalDays) * 100;
+    const left = Math.max(0, (startDay / totalDays) * 100);
+    const width = Math.min(100 - left, (duration / totalDays) * 100);
 
     return { left: `${left}%`, width: `${width}%` };
   };
 
   const generateDateHeaders = () => {
     const headers = [];
-    // Ensure we're using the correct start date (Nov 1, 2025)
-    const actualStartDate = data.startDate < new Date('2025-11-01') ? new Date('2025-11-01') : data.startDate;
-    const actualEndDate = data.endDate < new Date('2026-01-24') ? new Date('2026-01-24') : data.endDate;
+    // Use actual project dates
+    const actualStartDate = data.startDate;
+    const actualEndDate = data.endDate;
     const totalDays = differenceInDays(actualEndDate, actualStartDate);
 
     if (viewMode === 'week') {
@@ -140,11 +137,11 @@ const GanttChart: React.FC<GanttChartProps> = ({
         onMouseLeave={() => setHoveredItem(null)}
       >
         <div className="absolute inset-0 flex items-center">
-          <div className="flex items-center gap-2 w-64 pr-4">
+          <div className="flex items-center gap-2 w-80 pr-4">
             {showTasks && (
               <button
                 onClick={() => toggleMilestone(milestone.id)}
-                className="p-1 hover:bg-gray-100 rounded"
+                className="p-1 hover:bg-gray-100 rounded flex-shrink-0"
               >
                 {expandedMilestones.has(milestone.id) ?
                   <ChevronDown className="w-4 h-4" /> :
@@ -152,12 +149,16 @@ const GanttChart: React.FC<GanttChartProps> = ({
                 }
               </button>
             )}
-            <span className="font-semibold truncate text-sm">{milestone.name}</span>
-            {getStatusIcon(milestone.status)}
+            <span className="font-semibold text-sm flex-1 min-w-0" title={milestone.name}>
+              {milestone.name}
+            </span>
+            <div className="flex-shrink-0">
+              {getStatusIcon(milestone.status)}
+            </div>
           </div>
         </div>
 
-        <div className="absolute left-64 right-0 h-full flex items-center">
+        <div className="absolute left-80 right-0 h-full flex items-center">
           <motion.div
             className={`absolute h-8 rounded-lg ${getStatusColor(milestone.status)} ${
               interactive ? 'cursor-pointer hover:shadow-lg' : ''
@@ -350,7 +351,7 @@ const GanttChart: React.FC<GanttChartProps> = ({
         <div className="min-w-[1200px]">
           {/* Date Headers */}
           <div className="flex border-b-2 border-gray-200 pb-2 mb-4">
-            <div className="w-64" />
+            <div className="w-80" />
             <div className="flex-1 flex">
               {generateDateHeaders().map((header, index) => (
                 <div
@@ -368,21 +369,24 @@ const GanttChart: React.FC<GanttChartProps> = ({
           <div className="relative">
             {/* Today Line */}
             {(() => {
-              const actualStartDate = data.startDate < new Date('2025-11-01') ? new Date('2025-11-01') : data.startDate;
-              const actualEndDate = data.endDate < new Date('2026-01-24') ? new Date('2026-01-24') : data.endDate;
+              const actualStartDate = data.startDate;
+              const actualEndDate = data.endDate;
               const today = new Date();
 
               // Only show today line if it's within the project timeline
               if (today >= actualStartDate && today <= actualEndDate) {
+                const totalDays = differenceInDays(actualEndDate, actualStartDate);
+                const daysFromStart = differenceInDays(today, actualStartDate);
+                const leftPosition = (daysFromStart / totalDays) * 100;
+
                 return (
                   <div
                     className="absolute top-0 bottom-0 w-0.5 bg-red-400 z-10"
                     style={{
-                      left: `${264 + (differenceInDays(today, actualStartDate) /
-                        differenceInDays(actualEndDate, actualStartDate)) * (100 - 22)}%`
+                      left: `calc(20rem + ${leftPosition}%)`
                     }}
                   >
-                    <div className="absolute -top-6 left-1/2 transform -translate-x-1/2 bg-red-400 text-white text-xs px-2 py-1 rounded">
+                    <div className="absolute -top-6 left-1/2 transform -translate-x-1/2 bg-red-400 text-white text-xs px-2 py-1 rounded whitespace-nowrap">
                       Today
                     </div>
                   </div>

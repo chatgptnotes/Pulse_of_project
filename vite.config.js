@@ -22,7 +22,9 @@ export default defineConfig(({ mode }) => {
     envDir: __dirname,
     // Explicitly define environment variables to ensure they're injected into the bundle
     define: {
-      'import.meta.env.VITE_BYPASS_AUTH': JSON.stringify('true'),
+      'import.meta.env.VITE_BYPASS_AUTH': JSON.stringify(env.VITE_BYPASS_AUTH || 'false'),
+      'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(env.VITE_SUPABASE_URL || 'https://winhdjtlwhgdoinfrxch.supabase.co'),
+      'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndpbmhkanRsd2hnZG9pbmZyeGNoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjEzNTkwNTQsImV4cCI6MjA3NjkzNTA1NH0.IKxXiHRZiJI4UXfbAiYThXcsvdx04vqx0ejQs8LhkGU'),
       'import.meta.env.VITE_BUGTRACKING_SUPABASE_URL': JSON.stringify(env.VITE_BUGTRACKING_SUPABASE_URL || 'https://winhdjtlwhgdoinfrxch.supabase.co'),
       'import.meta.env.VITE_BUGTRACKING_SUPABASE_ANON_KEY': JSON.stringify(env.VITE_BUGTRACKING_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndpbmhkanRsd2hnZG9pbmZyeGNoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjEzNTkwNTQsImV4cCI6MjA3NjkzNTA1NH0.IKxXiHRZiJI4UXfbAiYThXcsvdx04vqx0ejQs8LhkGU'),
     },

@@ -92,11 +92,34 @@ const LoginForm = () => {
         console.log('✅ LoginForm: Login successful, navigating based on user role');
 
         // Determine redirect path based on user role
-        let redirectPath = '/dashboard'; // Default to dashboard
+        let redirectPath = '/pulseofproject'; // Default to project page
         if (result.user) {
           switch (result.user.role) {
             case 'super_admin':
               redirectPath = '/admin';
+              break;
+            case 'user':
+              // Regular users: Automatically select their first project
+              // Fetch user's projects and redirect to first one
+              try {
+                const { default: userProjectsService } = await import('../../services/userProjectsService');
+                const userProjects = await userProjectsService.getUserProjects(result.user.id);
+
+                if (userProjects && userProjects.length > 0) {
+                  // Redirect to first assigned project
+                  const firstProject = userProjects[0];
+                  const frontendId = firstProject.frontendId || firstProject.project_id || 'neurosense-360';
+                  redirectPath = `/pulseofproject?project=${frontendId}`;
+                  console.log('✅ Auto-selecting first project for user:', frontendId);
+                } else {
+                  // No projects assigned - show project selector
+                  redirectPath = '/pulseofproject';
+                  console.log('⚠️ User has no projects assigned');
+                }
+              } catch (error) {
+                console.error('Error fetching user projects:', error);
+                redirectPath = '/pulseofproject';
+              }
               break;
             case 'clinic_admin':
             case 'clinic':
@@ -106,12 +129,16 @@ const LoginForm = () => {
               redirectPath = '/patient-dashboard';
               break;
             default:
-              redirectPath = '/dashboard'; // Fallback to dashboard
+              redirectPath = '/pulseofproject'; // Fallback to project page
           }
         }
 
-        // Use intended path if available, otherwise use role-based path
-        const from = location.state?.from?.pathname || redirectPath;
+        // For regular users, don't redirect to /admin even if that's where they came from
+        let from = location.state?.from?.pathname || redirectPath;
+        if (result.user?.role !== 'super_admin' && from === '/admin') {
+          from = redirectPath; // Use the calculated redirectPath
+        }
+
         navigate(from, { replace: true });
       } else {
         console.log('❌ LoginForm: Login failed:', result?.error);

@@ -15,32 +15,123 @@ export class ProjectTrackingService {
     try {
       console.log('📡 Fetching project from database:', projectId);
 
-      // Load project and milestones separately to avoid foreign key issues
+      // Check if projectId is a UUID (format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(projectId);
+      console.log(`🔍 Project ID is ${isUUID ? 'UUID' : 'TEXT'}:`, projectId);
+
+      // Try to load from projects table first
+      // Match by appropriate column based on ID format
       const { data: project, error: projectError } = await supabaseService.supabase
         .from('projects')
         .select('*')
-        .eq('id', projectId)
-        .single();
+        .eq(isUUID ? 'id' : 'project_id', projectId)
+        .maybeSingle();
+
+      // If project doesn't exist in projects table, try admin_projects
+      if (!project) {
+        if (projectError) {
+          console.log('⚠️ Project query returned error, checking admin_projects...', projectError);
+        } else {
+          console.log('⚠️ Project not found in projects table, checking admin_projects...');
+        }
+
+        // admin_projects: try matching by UUID id first, then by project_id text
+        const { data: adminProject, error: adminError } = await supabaseService.supabase
+          .from('admin_projects')
+          .select('*')
+          .eq(isUUID ? 'id' : 'project_id', projectId)
+          .maybeSingle();
+
+        if (adminError || !adminProject) {
+          console.warn('ℹ️ No matching project found in admin_projects. This is expected if the user has no assigned project.', {
+            projectId,
+            error: adminError || null
+          });
+          return null;
+        }
+
+        console.log('✅ Found project in admin_projects, creating in projects table...');
+
+        // Create project in projects table
+        // Note: adminProject.project_id is the TEXT ID, adminProject.id is UUID
+        const newProject = {
+          id: isUUID ? projectId : undefined, // Use UUID if that's what was passed
+          project_id: isUUID ? (adminProject.project_id || adminProject.name.toLowerCase().replace(/\s+/g, '-')) : projectId,
+          name: adminProject.name,
+          description: adminProject.description || '',
+          client: adminProject.client,
+          start_date: new Date().toISOString(),
+          end_date: adminProject.deadline || new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString(),
+          status: adminProject.status || 'active',
+          overall_progress: adminProject.progress || 0
+        };
+
+        const { data: createdProject, error: createError } = await supabaseService.supabase
+          .from('projects')
+          .insert(newProject)
+          .select()
+          .single();
+
+        if (createError) {
+          console.error('Error creating project:', createError);
+          // Still try to fetch milestones even if project creation failed
+        }
+
+        // Fetch milestones from project_milestones table
+        // Use the TEXT project_id for milestone lookup
+        const milestoneProjectId = isUUID ? (adminProject.project_id || adminProject.name.toLowerCase().replace(/\s+/g, '-')) : projectId;
+        console.log(`📊 Fetching milestones for project_id: ${milestoneProjectId}`);
+
+        const { data: milestones, error: milestonesError } = await supabaseService.supabase
+          .from('project_milestones')
+          .select('*')
+          .eq('project_id', milestoneProjectId)
+          .order('order', { ascending: true });
+
+        if (milestonesError) {
+          console.error('Error fetching milestones:', milestonesError);
+        }
+
+        console.log(`✅ Fetched ${milestones?.length || 0} milestones for project ${projectId}`);
+
+        // Return project with milestones
+        const projectToReturn = createdProject || newProject;
+        return {
+          ...projectToReturn,
+          milestones: milestones || [],
+          tasks: [],
+          team: [],
+          risks: []
+        } as ProjectData;
+      }
 
       if (projectError) {
         console.error('Error fetching project:', projectError);
         return null;
       }
 
-      console.log('✅ Project fetched:', project);
+      console.log('✅ Project fetched from projects table:', project);
 
-      // Load milestones separately
+      // Load milestones separately from project_milestones table
+      // Always use the TEXT project_id column for milestone lookup
+      const milestoneProjectId = project.project_id || projectId;
+      console.log('📊 Fetching milestones for project_id:', milestoneProjectId);
       const { data: milestones, error: milestonesError } = await supabaseService.supabase
         .from('project_milestones')
         .select('*')
-        .eq('project_id', projectId)
+        .eq('project_id', milestoneProjectId)
         .order('order', { ascending: true });
 
       if (milestonesError) {
-        console.error('Error fetching milestones:', milestonesError);
+        console.error('❌ Error fetching milestones:', milestonesError);
+      } else {
+        console.log(`✅ Fetched ${milestones?.length || 0} milestones for project ${projectId}`);
+        if (milestones && milestones.length > 0) {
+          console.log('📦 Sample milestone:', milestones[0]);
+        } else {
+          console.warn('⚠️ No milestones found in project_milestones table for project:', projectId);
+        }
       }
-
-      console.log(`✅ Fetched ${milestones?.length || 0} milestones for project ${projectId}`);
 
       // Combine the data
       return {

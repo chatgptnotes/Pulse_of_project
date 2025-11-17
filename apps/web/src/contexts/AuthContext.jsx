@@ -91,13 +91,12 @@ export const AuthProvider = ({ children }) => {
 
         // Default super admin user if no stored user
         const defaultUser = {
-          id: 'dev-super-admin',
-          name: 'Super Admin (Dev)',
-          email: 'superadmin@neurosense360.com',
+          id: 'super-admin',
+          name: 'Super Admin',
+          email: 'admin@pulseofproject.com',
           role: 'super_admin',
           profilePicture: null,
-          isActivated: true,
-          clinicId: null
+          isActivated: true
         };
 
         setUser(defaultUser);
@@ -116,9 +115,9 @@ export const AuthProvider = ({ children }) => {
       const { data: { session } } = await supabase.auth.getSession();
 
       if (session?.user) {
-        // Get user profile from database
-        const { data: profile } = await supabase
-          .from('profiles')
+        // Get user profile from users table (not profiles)
+        const { data: userProfile } = await supabase
+          .from('users')
           .select('*')
           .eq('id', session.user.id)
           .single();
@@ -126,10 +125,10 @@ export const AuthProvider = ({ children }) => {
         const userData = {
           id: session.user.id,
           email: session.user.email,
-          name: profile?.full_name || session.user.user_metadata?.full_name || 'User',
-          role: profile?.role || session.user.user_metadata?.role || 'patient',
-          avatar: profile?.avatar_url,
-          isActivated: true
+          name: userProfile?.full_name || session.user.user_metadata?.full_name || 'User',
+          role: userProfile?.role || 'user', // Use actual role from database
+          avatar: userProfile?.avatar_url,
+          isActivated: userProfile?.is_active !== false
         };
 
         setUser(userData);
@@ -160,36 +159,17 @@ export const AuthProvider = ({ children }) => {
       // Simulate loading time
       await new Promise(resolve => setTimeout(resolve, 500));
 
-      // Determine user role based on email patterns
-      const email = credentials.email || 'dev@neurosense360.com';
-      let userRole = 'super_admin'; // default
-      let userName = 'Development User';
-      let clinicId = null;
-
-      // Role detection based on email patterns
-      if (email.includes('superadmin') || email.includes('admin@neurosense')) {
-        userRole = 'super_admin';
-        userName = 'Super Admin (Dev)';
-        clinicId = null;
-      } else if (email.includes('clinic') || email.includes('@clinic') ||
-                 email.includes('doctor') || email.includes('dr.')) {
-        userRole = 'clinic_admin';
-        userName = 'Clinic Admin (Dev)';
-        clinicId = 'dev-clinic-123';
-      } else if (email.includes('patient')) {
-        userRole = 'patient';
-        userName = 'Patient (Dev)';
-        clinicId = 'dev-clinic-123';
-      }
+      // Only super_admin role allowed
+      const email = credentials.email || 'admin@pulseofproject.com';
+      const userName = 'Super Admin';
 
       const defaultUser = {
-        id: `dev-${userRole}-${Date.now()}`,
+        id: `super-admin-${Date.now()}`,
         name: userName,
         email: email,
-        role: userRole,
+        role: 'super_admin',
         profilePicture: null,
-        isActivated: true,
-        clinicId: clinicId
+        isActivated: true
       };
 
       setUser(defaultUser);
@@ -198,7 +178,7 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem('user', JSON.stringify(defaultUser));
       localStorage.setItem('authToken', 'dev-bypass-token');
 
-      toast.success(`🚀 Development mode login as ${userRole}!`);
+      toast.success(`🚀 Development mode login as ${defaultUser.role}!`);
       console.log('✅ Development login successful:', defaultUser.name, defaultUser.role);
 
       return {
@@ -214,8 +194,61 @@ export const AuthProvider = ({ children }) => {
       console.log('📧 Login method:', method);
       console.log('📝 Credentials:', { email: credentials.email, hasPassword: !!credentials.password });
 
-      // Production authentication disabled - using BYPASS_AUTH mode
-      throw new Error('Production authentication not configured. Please enable VITE_BYPASS_AUTH in .env');
+      // Check if Supabase client is available
+      if (!supabase) {
+        throw new Error('Supabase client not initialized. Please check your configuration.');
+      }
+
+      // Sign in with Supabase
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: credentials.email,
+        password: credentials.password,
+      });
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      if (!data.user) {
+        throw new Error('Login failed. No user data received.');
+      }
+
+      // Get user profile from users table
+      const { data: userProfile, error: profileError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', data.user.id)
+        .single();
+
+      if (profileError) {
+        console.warn('User profile not found in database');
+        throw new Error('User profile not found. Please contact administrator.');
+      }
+
+      // Get actual role from database (no hardcoded super_admin)
+      const userRole = userProfile?.role || 'user';
+
+      const userData = {
+        id: data.user.id,
+        email: data.user.email,
+        name: userProfile?.full_name || data.user.user_metadata?.full_name || 'User',
+        role: userRole, // Use actual role from database
+        avatar: userProfile?.avatar_url,
+        isActivated: userProfile?.is_active !== false
+      };
+
+      setUser(userData);
+      setIsAuthenticated(true);
+      localStorage.setItem('user', JSON.stringify(userData));
+
+      toast.success('Login successful!');
+      console.log('✅ Login successful:', userData.name, userData.role);
+
+      return {
+        success: true,
+        user: userData,
+        message: 'Login successful'
+      };
 
     } catch (error) {
       console.error('🚨 AuthContext: Login failed:', error);
@@ -238,14 +271,12 @@ export const AuthProvider = ({ children }) => {
       await new Promise(resolve => setTimeout(resolve, 800));
 
       const defaultUser = {
-        id: 'dev-user-' + Date.now(),
-        name: userData.name || 'Development User',
-        email: userData.email || 'dev@neurosense360.com',
-        role: userData.userType === 'super_admin' ? 'super_admin' :
-              userData.userType === 'patient' ? 'patient' : 'clinic_admin',
+        id: 'super-admin-' + Date.now(),
+        name: userData.name || 'Super Admin',
+        email: userData.email || 'admin@pulseofproject.com',
+        role: 'super_admin',
         profilePicture: null,
-        isActivated: true,
-        clinicId: 'dev-clinic-123'
+        isActivated: true
       };
 
       setUser(defaultUser);
@@ -291,7 +322,11 @@ export const AuthProvider = ({ children }) => {
     try {
       console.log('🚪 Logging out user...');
 
-      // authService removed - using BYPASS_AUTH mode
+      // Sign out from Supabase if client is available
+      if (supabase && !BYPASS_AUTH) {
+        await supabase.auth.signOut();
+        console.log('✅ Signed out from Supabase');
+      }
 
       // Clear all authentication data
       if (typeof window !== 'undefined') {
@@ -304,10 +339,8 @@ export const AuthProvider = ({ children }) => {
 
         // Clear all cached data
         Object.keys(localStorage).forEach(key => {
-          if (key.startsWith('patients_') ||
-              key.startsWith('patient_reports_') ||
-              key.startsWith('dbCache_') ||
-              key.startsWith('clinic_')) {
+          if (key.startsWith('dbCache_') ||
+              key.startsWith('project_')) {
             localStorage.removeItem(key);
           }
         });
@@ -334,10 +367,8 @@ export const AuthProvider = ({ children }) => {
 
         // Clear all cached data
         Object.keys(localStorage).forEach(key => {
-          if (key.startsWith('patients_') ||
-              key.startsWith('patient_reports_') ||
-              key.startsWith('dbCache_') ||
-              key.startsWith('clinic_')) {
+          if (key.startsWith('dbCache_') ||
+              key.startsWith('project_')) {
             localStorage.removeItem(key);
           }
         });
@@ -355,7 +386,7 @@ export const AuthProvider = ({ children }) => {
     try {
       setLoading(true);
       // authService removed - password reset not available in bypass mode
-      toast.info('Password reset not configured. Using development mode.');
+      toast('Password reset not configured. Using development mode.');
       return { success: false, error: 'Not configured' };
     } catch (error) {
       console.error('Forgot password failed:', error);
@@ -370,7 +401,7 @@ export const AuthProvider = ({ children }) => {
     try {
       setLoading(true);
       // authService removed - password reset not available in bypass mode
-      toast.info('Password reset not configured. Using development mode.');
+      toast('Password reset not configured. Using development mode.');
       return { success: false, error: 'Not configured' };
     } catch (error) {
       console.error('Password reset failed:', error);

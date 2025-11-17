@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import {
   Activity, GitBranch, Github, Gitlab, AlertCircle, CheckCircle2,
   Settings, Users, BarChart3, Calendar, Zap, Bell, Download,
-  Upload, Share2, RefreshCw, Webhook, Database, Cloud, MessageSquare, Menu, X, ArrowRight, Edit3
+  Upload, Share2, RefreshCw, Webhook, Database, Cloud, MessageSquare, Menu, X, ArrowRight, Edit3, LogOut
 } from 'lucide-react';
 import { PRODUCT_CONFIG, CLIENT_CONFIG } from './config/brand';
 import ProjectSelector from './components/ProjectSelector';
@@ -20,27 +20,39 @@ import GanttChart from '../project-tracking/components/GanttChart';
 import ProjectDocuments from '../project-tracking/components/ProjectDocuments';
 import { projectOverview } from '../project-tracking/data/sample-project-milestones';
 import { ProjectTrackingService } from '../project-tracking/services/projectTrackingService';
+import PermissionGuard from '../../components/PermissionGuard';
+import { PERMISSIONS } from '../../constants/permissions';
+import { useAuth } from '../../contexts/AuthContext';
+import userProjectsService from '../../services/userProjectsService';
 
 interface PulseOfProjectProps {
   clientMode?: boolean;
-  projectId?: string;
+  projectId?: string | null;
   apiKey?: string;
 }
 
 const PulseOfProject: React.FC<PulseOfProjectProps> = ({
   clientMode = false,
-  projectId = 'neurosense-360',
+  projectId = null,
   apiKey
 }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user, logout } = useAuth(); // Get user and logout from AuthContext
 
   // Read project ID from URL parameter
   const searchParams = new URLSearchParams(location.search);
   const urlProjectId = searchParams.get('project');
   const initialProjectId = urlProjectId || projectId;
 
-  const [selectedProject, setSelectedProject] = useState(initialProjectId);
+  const [selectedProject, setSelectedProject] = useState<string | null>(initialProjectId);
+
+  // Log initial project selection
+  useEffect(() => {
+    console.log('🎯 Initial project from URL:', urlProjectId);
+    console.log('🎯 Initial project from props:', projectId);
+    console.log('🎯 Selected project:', initialProjectId);
+  }, []);
   const [projectData, setProjectData] = useState<any>({
     id: initialProjectId,
     name: 'Loading...',
@@ -59,12 +71,9 @@ const PulseOfProject: React.FC<PulseOfProjectProps> = ({
 
   // Map frontend project IDs to database project IDs
   const getDbProjectId = (projectId: string): string => {
-    const idMap: Record<string, string> = {
-      'neurosense-360': 'neurosense-mvp',
-      'neurosense-mvp': 'neurosense-mvp',
-      // Add more mappings if needed
-    };
-    return idMap[projectId] || projectId;
+    // Frontend project IDs match database IDs from admin_projects table
+    // No mapping needed - return as-is
+    return projectId;
   };
   const [autoUpdateEnabled, setAutoUpdateEnabled] = useState(true);
   const [lastSync, setLastSync] = useState(new Date());
@@ -80,17 +89,61 @@ const PulseOfProject: React.FC<PulseOfProjectProps> = ({
     slack: { connected: false, channels: [] }
   });
 
+  // Auto-select first assigned project for regular users if none selected
+  useEffect(() => {
+    const ensureProjectSelectedForUser = async () => {
+      if (clientMode) return;
+      if (!user || user.role === 'super_admin') return;
+      if (selectedProject) return;
+
+      try {
+        console.log('🔐 Loading assigned projects for user:', user.id);
+        const userProjects = await userProjectsService.getUserProjects(user.id);
+
+        let frontendId: string | null = null;
+
+        if (userProjects && userProjects.length > 0) {
+          const first = userProjects[0];
+          frontendId = (first as any).frontendId || (first as any).project_id || (first as any).id || null;
+          console.log('🎯 Auto-selecting user project from assignments:', frontendId);
+        } else {
+          // Fallback: default marketing project id used across the app
+          frontendId = 'neurosense-mvp';
+          console.log('ℹ️ No projects assigned to this user. Falling back to default project:', frontendId);
+        }
+
+        if (frontendId) {
+          setSelectedProject(frontendId);
+
+          // Keep URL in sync for refresh/share
+          const params = new URLSearchParams(location.search);
+          params.set('project', frontendId);
+          navigate(`${location.pathname}?${params.toString()}`, { replace: true });
+        }
+      } catch (error) {
+        console.error('❌ Failed to load user projects for auto-selection:', error);
+      }
+    };
+
+    ensureProjectSelectedForUser();
+  }, [clientMode, user, selectedProject, navigate, location.pathname, location.search]);
+
   // Update selectedProject when URL parameter or projectId prop changes
   useEffect(() => {
     const searchParams = new URLSearchParams(location.search);
     const urlProjectId = searchParams.get('project');
     const newProjectId = urlProjectId || projectId;
 
-    if (newProjectId !== selectedProject) {
+    if (newProjectId && newProjectId !== selectedProject) {
       console.log('🔄 Project ID changed:', selectedProject, '->', newProjectId);
       setSelectedProject(newProjectId);
+
+      // Update URL to reflect selected project
+      if (!urlProjectId && newProjectId) {
+        navigate(`${location.pathname}?project=${newProjectId}`, { replace: true });
+      }
     }
-  }, [location.search, projectId, selectedProject]);
+  }, [location.search, projectId, selectedProject, navigate, location.pathname]);
 
   // FIXED: Clear bugs when switching projects to prevent cross-contamination
   useEffect(() => {
@@ -100,6 +153,13 @@ const PulseOfProject: React.FC<PulseOfProjectProps> = ({
 
   // Shared function to load project data
   const loadProjectData = useCallback(async () => {
+    // Validate selectedProject before loading
+    if (!selectedProject) {
+      console.log('⚠️ No project selected, skipping data load');
+      setIsLoadingData(false);
+      return;
+    }
+
     const dbProjectId = getDbProjectId(selectedProject);
     console.log('🔍 [PulseOfProject] Loading project data for:', selectedProject, '-> DB ID:', dbProjectId);
 
@@ -123,29 +183,35 @@ const PulseOfProject: React.FC<PulseOfProjectProps> = ({
           console.log('⚠️ dbProject is null or undefined!');
         }
 
-        // If project doesn't exist, create it with default data
+        // If project doesn't exist, show error and empty state
         if (!dbProject) {
-          console.log('⚠️ Project not found in database, creating it...');
-          const projectToMatch = PRODUCT_CONFIG.projects.find(p => p.id === selectedProject);
-          const defaultData = projectToMatch?.projectData || projectOverview;
+          console.log('⚠️ Project not found in database');
+          console.log('ℹ️  Please run COMPLETE_MILESTONE_IMPORT.sql to populate the database');
 
-          // Create project in database
-          const success = await ProjectTrackingService.updateProject(dbProjectId, {
+          setIsLoadingData(false);
+
+          // Set empty state
+          setProjectData({
             id: dbProjectId,
-            name: projectToMatch?.name || selectedProject,
-            description: projectToMatch?.description || '',
-            client: 'Client',
-            startDate: defaultData.startDate,
-            endDate: defaultData.endDate,
+            name: selectedProject || 'Project',
+            description: 'Project not found in database',
+            client: '',
+            startDate: new Date(),
+            endDate: new Date(),
+            overallProgress: 0,
             status: 'active',
-            overallProgress: 0
+            milestones: [],
+            tasks: [],
+            team: [],
+            risks: []
           });
 
-          if (success) {
-            console.log('✅ Project created in database');
-            // Now load it
-            dbProject = await ProjectTrackingService.getProject(dbProjectId);
-          }
+          // Show error message
+          toast.error('❌ Project not found in database. Please import data first.', {
+            duration: 5000
+          });
+
+          return; // Exit early
         }
 
         if (dbProject && dbProject.milestones && dbProject.milestones.length > 0) {
@@ -239,89 +305,11 @@ const PulseOfProject: React.FC<PulseOfProjectProps> = ({
         setIsLoadingData(false);
 
         // Show toast to guide user
-        toast.info('📋 No project timeline data found. Please save data from the edit page first.', {
+        toast('📋 No project timeline data found. Please save data from the edit page first.', {
           duration: 5000
         });
 
-        return; // Exit early - don't generate dummy data
-
-        // OLD DUMMY DATA CODE BELOW (kept for reference but won't execute)
-        console.log('⚠️ (SKIPPED) Would have generated dummy milestones');
-
-        import('./data/projects').then(({ projects }) => {
-          const project = projects.find(p => p.id === selectedProject);
-          if (project) {
-            // Calculate start and end dates first
-            const endDate = project.deadline ? new Date(project.deadline) : new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
-            const startDate = new Date(endDate);
-            startDate.setMonth(startDate.getMonth() - 3);
-
-            // Generate milestone data based on project progress
-            const totalMilestones = 10;
-            const completedCount = Math.floor((project.progress / 100) * totalMilestones);
-            const inProgressCount = project.progress < 100 ? 1 : 0;
-
-            // Calculate the duration of the project in days
-            const projectDurationDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-            const daysPerMilestone = Math.floor(projectDurationDays / totalMilestones);
-
-            const milestones = Array.from({ length: totalMilestones }, (_, i) => {
-              const milestoneNumber = i + 1;
-              let status: 'completed' | 'in-progress' | 'pending' = 'pending';
-              let progress = 0;
-
-              if (milestoneNumber <= completedCount) {
-                status = 'completed';
-                progress = 100;
-              } else if (milestoneNumber === completedCount + 1 && inProgressCount > 0) {
-                status = 'in-progress';
-                progress = ((project.progress % 10) || 10) * 10;
-              }
-
-              // Calculate milestone start and end dates
-              const milestoneStartDate = new Date(startDate);
-              milestoneStartDate.setDate(milestoneStartDate.getDate() + (i * daysPerMilestone));
-
-              const milestoneEndDate = new Date(milestoneStartDate);
-              milestoneEndDate.setDate(milestoneEndDate.getDate() + daysPerMilestone - 1);
-
-              return {
-                id: `milestone-${milestoneNumber}`,
-                name: `Phase ${milestoneNumber}: ${['Foundation', 'Development', 'Integration', 'Testing', 'Polish', 'Deployment', 'Launch', 'Optimization', 'Scale', 'Completion'][i]}`,
-                description: `Phase ${milestoneNumber} of project development`,
-                status,
-                startDate: milestoneStartDate,
-                endDate: milestoneEndDate,
-                progress,
-                deliverables: [],
-                assignedTo: [],
-                dependencies: [],
-                order: milestoneNumber,
-                color: '#4F46E5',
-                kpis: []
-              };
-            });
-
-            setProjectData({
-              ...projectOverview,
-              id: project.id,
-              name: project.name,
-              description: project.description || `${project.client} project`,
-              client: project.client,
-              startDate,
-              endDate,
-              overallProgress: project.progress,
-              milestones,
-              team: Array.from({ length: project.team }, (_, i) => ({
-                id: String(i + 1),
-                name: `Team Member ${i + 1}`,
-                email: `member${i + 1}@${project.client.toLowerCase().replace(/\s+/g, '')}.com`,
-                role: 'Developer',
-                allocation: 100
-              }))
-            });
-          }
-        });
+        return; // Exit early
         }
       } catch (error) {
         console.error('❌ [PulseOfProject] Error loading project data:', error);
@@ -347,80 +335,6 @@ const PulseOfProject: React.FC<PulseOfProjectProps> = ({
         });
 
         return; // Exit early
-
-        // OLD FALLBACK CODE BELOW (kept for reference but won't execute)
-        console.log('❌ (SKIPPED) Would have used fallback data');
-
-        // Fallback to dummy data on error
-        import('./data/projects').then(({ projects }) => {
-          const project = projects.find(p => p.id === selectedProject);
-          if (project) {
-            console.log('⚠️ Using fallback dummy data due to error');
-            const endDate = project.deadline ? new Date(project.deadline) : new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
-            const startDate = new Date(endDate);
-            startDate.setMonth(startDate.getMonth() - 3);
-
-            const totalMilestones = 10;
-            const completedCount = Math.floor((project.progress / 100) * totalMilestones);
-            const inProgressCount = project.progress < 100 ? 1 : 0;
-            const projectDurationDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-            const daysPerMilestone = Math.floor(projectDurationDays / totalMilestones);
-
-            const milestones = Array.from({ length: totalMilestones }, (_, i) => {
-              const milestoneNumber = i + 1;
-              let status: 'completed' | 'in-progress' | 'pending' = 'pending';
-              let progress = 0;
-
-              if (milestoneNumber <= completedCount) {
-                status = 'completed';
-                progress = 100;
-              } else if (milestoneNumber === completedCount + 1 && inProgressCount > 0) {
-                status = 'in-progress';
-                progress = ((project.progress % 10) || 10) * 10;
-              }
-
-              const milestoneStartDate = new Date(startDate);
-              milestoneStartDate.setDate(milestoneStartDate.getDate() + (i * daysPerMilestone));
-              const milestoneEndDate = new Date(milestoneStartDate);
-              milestoneEndDate.setDate(milestoneEndDate.getDate() + daysPerMilestone - 1);
-
-              return {
-                id: `milestone-${milestoneNumber}`,
-                name: `Phase ${milestoneNumber}: ${['Foundation', 'Development', 'Integration', 'Testing', 'Polish', 'Deployment', 'Launch', 'Optimization', 'Scale', 'Completion'][i]}`,
-                description: `Phase ${milestoneNumber} of project development`,
-                status,
-                startDate: milestoneStartDate,
-                endDate: milestoneEndDate,
-                progress,
-                deliverables: [],
-                assignedTo: [],
-                dependencies: [],
-                order: milestoneNumber,
-                color: '#4F46E5',
-                kpis: []
-              };
-            });
-
-            setProjectData({
-              ...projectOverview,
-              id: project.id,
-              name: project.name,
-              description: project.description || `${project.client} project`,
-              client: project.client,
-              startDate,
-              endDate,
-              overallProgress: project.progress,
-              milestones,
-              team: Array.from({ length: project.team }, (_, i) => ({
-                id: String(i + 1),
-                name: `Team Member ${i + 1}`,
-                email: `member${i + 1}@${project.client.toLowerCase().replace(/\s+/g, '')}.com`,
-                role: 'Developer',
-                allocation: 100
-              }))
-            });
-          }
-        });
       }
   }, [selectedProject]);
 
@@ -646,6 +560,8 @@ const PulseOfProject: React.FC<PulseOfProjectProps> = ({
 
   // Subscribe to real-time changes from the database
   useEffect(() => {
+    if (!selectedProject) return;
+
     const dbProjectId = getDbProjectId(selectedProject);
     const subscription = ProjectTrackingService.subscribeToProjectChanges(
       dbProjectId,
@@ -693,6 +609,8 @@ const PulseOfProject: React.FC<PulseOfProjectProps> = ({
 
   // Reload data when navigating back to this page (React Router navigation)
   useEffect(() => {
+    if (!selectedProject) return;
+
     console.log('🔄 Route changed - reloading project data...');
     const dbProjectId = getDbProjectId(selectedProject);
 
@@ -734,6 +652,8 @@ const PulseOfProject: React.FC<PulseOfProjectProps> = ({
 
   // Reload data when window/tab becomes visible again (user switches back)
   useEffect(() => {
+    if (!selectedProject) return;
+
     const handleVisibilityChange = async () => {
       if (!document.hidden) {
         console.log('🔄 Tab became visible - reloading project data...');
@@ -881,63 +801,87 @@ const PulseOfProject: React.FC<PulseOfProjectProps> = ({
               </div>
             </div>
 
-            {!clientMode && (
-              <div className="flex items-center gap-4">
-                {/* Sync Status */}
-                <div className="flex items-center gap-2 px-4 py-2 bg-gray-50 rounded-lg">
-                  <RefreshCw className={`w-4 h-4 ${syncStatus === 'syncing' ? 'animate-spin' : ''}`} />
-                  <span className="text-sm">
-                    {syncStatus === 'syncing' ? 'Syncing...' :
-                     syncStatus === 'success' ? 'Synced' :
-                     syncStatus === 'error' ? 'Sync Failed' : 'Ready'}
-                  </span>
-                  <span className="text-xs text-gray-500">
-                    {lastSync.toLocaleTimeString()}
-                  </span>
+            <div className="flex items-center gap-3">
+              {!clientMode && (
+                <div className="flex items-center gap-4">
+                  {/* Sync Status */}
+                  <div className="flex items-center gap-2 px-4 py-2 bg-gray-50 rounded-lg">
+                    <RefreshCw className={`w-4 h-4 ${syncStatus === 'syncing' ? 'animate-spin' : ''}`} />
+                    <span className="text-sm">
+                      {syncStatus === 'syncing' ? 'Syncing...' :
+                       syncStatus === 'success' ? 'Synced' :
+                       syncStatus === 'error' ? 'Sync Failed' : 'Ready'}
+                    </span>
+                    <span className="text-xs text-gray-500">
+                      {lastSync.toLocaleTimeString()}
+                    </span>
+                  </div>
+
+                  {/* Auto-Update Toggle */}
+                  <button
+                    onClick={() => setAutoUpdateEnabled(!autoUpdateEnabled)}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                      autoUpdateEnabled
+                        ? 'bg-green-100 text-green-700 border border-green-300'
+                        : 'bg-gray-100 text-gray-600 border border-gray-300'
+                    }`}
+                  >
+                    <Zap className="w-4 h-4" />
+                    <span className="text-sm font-medium">
+                      Auto-Update {autoUpdateEnabled ? 'ON' : 'OFF'}
+                    </span>
+                  </button>
+
+                  {/* Chat/Collaboration */}
+                  <button
+                    onClick={() => setShowChat(!showChat)}
+                    className={`relative p-2 rounded-lg transition-colors flex items-center gap-2 ${
+                      showChat ? 'bg-indigo-100 text-indigo-600' : 'hover:bg-gray-100 text-gray-700'
+                    }`}
+                    title="Project Chat"
+                  >
+                    <MessageSquare className="w-5 h-5" />
+                    <span className="text-sm font-medium">Chat</span>
+                    <span className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                  </button>
+
+                  {/* Notifications */}
+                  <button className="relative p-2 rounded-lg hover:bg-gray-100">
+                    <Bell className="w-5 h-5" />
+                    {notifications.length > 0 && (
+                      <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full" />
+                    )}
+                  </button>
                 </div>
+              )}
 
-                {/* Auto-Update Toggle */}
-                <button
-                  onClick={() => setAutoUpdateEnabled(!autoUpdateEnabled)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-                    autoUpdateEnabled
-                      ? 'bg-green-100 text-green-700 border border-green-300'
-                      : 'bg-gray-100 text-gray-600 border border-gray-300'
-                  }`}
-                >
-                  <Zap className="w-4 h-4" />
-                  <span className="text-sm font-medium">
-                    Auto-Update {autoUpdateEnabled ? 'ON' : 'OFF'}
-                  </span>
-                </button>
+              {/* Logged-in user profile chip */}
+              {user && (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-50 border border-gray-200 text-xs md:text-sm text-gray-700">
+                  <div className="flex flex-col leading-tight max-w-[220px] md:max-w-xs">
+                    <span className="font-semibold truncate">
+                      {user.name || user.email || 'User'}
+                    </span>
+                    <span className="truncate text-gray-500">
+                      {user.email}
+                    </span>
+                    <span className="font-mono text-[10px] md:text-[11px] text-gray-400 truncate">
+                      ID: {user.id}
+                    </span>
+                  </div>
+                </div>
+              )}
 
-                {/* Chat/Collaboration */}
-                <button
-                  onClick={() => setShowChat(!showChat)}
-                  className={`relative p-2 rounded-lg transition-colors flex items-center gap-2 ${
-                    showChat ? 'bg-indigo-100 text-indigo-600' : 'hover:bg-gray-100 text-gray-700'
-                  }`}
-                  title="Project Chat"
-                >
-                  <MessageSquare className="w-5 h-5" />
-                  <span className="text-sm font-medium">Chat</span>
-                  <span className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                </button>
-
-                {/* Notifications */}
-                <button className="relative p-2 rounded-lg hover:bg-gray-100">
-                  <Bell className="w-5 h-5" />
-                  {notifications.length > 0 && (
-                    <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full" />
-                  )}
-                </button>
-
-                {/* Settings */}
-                <button className="p-2 rounded-lg hover:bg-gray-100">
-                  <Settings className="w-5 h-5" />
-                </button>
-              </div>
-            )}
+              {/* Logout Button */}
+              <button
+                onClick={() => logout()}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50"
+                title="Logout"
+              >
+                <LogOut className="w-4 h-4" />
+                <span className="text-sm font-medium">Logout</span>
+              </button>
+            </div>
           </div>
         </div>
       </header>
@@ -964,36 +908,61 @@ const PulseOfProject: React.FC<PulseOfProjectProps> = ({
 
         {/* Main Dashboard */}
         <main className={`flex-1 p-6 overflow-y-auto transition-all duration-300 ${!isSidebarOpen || clientMode ? 'ml-0' : ''}`}>
-          {/* Project Selector - TOP */}
-          <ProjectSelector
-            selectedProject={selectedProject}
-            onProjectChange={setSelectedProject}
-            clientMode={clientMode}
-          />
+          {/* Project Selector - Only show for super_admin or when explicitly opened */}
+          {user?.role === 'super_admin' && (
+            <ProjectSelector
+              selectedProject={selectedProject}
+              onProjectChange={setSelectedProject}
+              clientMode={clientMode}
+            />
+          )}
 
-          {/* Navigate to Detailed Project Tracking Button */}
-          {!clientMode && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mt-4 mb-6"
+          {/* For regular users, show project name without selector */}
+          {user?.role !== 'super_admin' && selectedProject && (
+            <div className="mb-6 bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-indigo-100 rounded-lg">
+                  <Activity className="w-5 h-5 text-indigo-600" />
+                </div>
+                <div>
+                  <h1 className="text-xl font-bold text-gray-900">{projectData.name}</h1>
+                  <p className="text-sm text-gray-500">{projectData.client}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Only show dashboard content when a project is selected */}
+          {selectedProject && (
+            <>
+          {/* Navigate to Detailed Project Tracking Button - For admin and super_admin */}
+          {!clientMode && (user?.role === 'super_admin' || user?.role === 'admin') && (
+            <PermissionGuard
+              projectId={selectedProject || undefined}
+              permission={PERMISSIONS.VIEW_DETAILED_PLAN}
             >
-              <button
-                onClick={goToDetailedView}
-                className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold py-4 px-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-between group"
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mt-4 mb-6"
               >
-                <div className="flex items-center gap-3">
-                  <Edit3 className="w-5 h-5" />
-                  <div className="text-left">
-                    <div className="text-lg">View Detailed Project Plan</div>
-                    <div className="text-sm opacity-90">
-                      Edit milestones, tasks, dates, and full project details
+                <button
+                  onClick={goToDetailedView}
+                  className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold py-4 px-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-between group"
+                >
+                  <div className="flex items-center gap-3">
+                    <Edit3 className="w-5 h-5" />
+                    <div className="text-left">
+                      <div className="text-lg">View Detailed Project Plan</div>
+                      <div className="text-sm opacity-90">
+                        Edit milestones, tasks, dates, and full project details
+                      </div>
                     </div>
                   </div>
-                </div>
-                <ArrowRight className="w-6 h-6 group-hover:translate-x-1 transition-transform" />
-              </button>
-            </motion.div>
+                  <ArrowRight className="w-6 h-6 group-hover:translate-x-1 transition-transform" />
+                </button>
+              </motion.div>
+            </PermissionGuard>
           )}
 
           {/* Metrics Dashboard - SECOND */}
@@ -1096,6 +1065,8 @@ const PulseOfProject: React.FC<PulseOfProjectProps> = ({
               </AnimatePresence>
             </div>
           </div>
+          </>
+          )}
         </main>
       </div>
 
