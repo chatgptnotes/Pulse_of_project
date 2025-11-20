@@ -23,12 +23,48 @@ const SimpleAuth = () => {
     try {
       if (isLogin) {
         // Login
+        console.log('🔵 SimpleAuth: Calling login...');
         const result = await login({ email: formData.email, password: formData.password });
-        if (result.success) {
-          toast.success('Login successful!');
-          navigate('/admin');
+        console.log('🔵 SimpleAuth: Login result:', result);
+
+        if (result && result.success) {
+          console.log('🔵 SimpleAuth: Login successful, user:', result.user);
+
+          // Don't show toast here, AuthContext already shows it
+          // Redirect based on user role
+          let redirectPath = '/pulseofproject';
+
+          if (result.user?.role === 'super_admin') {
+            redirectPath = '/admin';
+          } else if (result.user?.role === 'user') {
+            // Regular users: Auto-select first assigned project
+            try {
+              const { default: userProjectsService } = await import('../services/userProjectsService');
+              const userProjects = await userProjectsService.getUserProjects(result.user.id);
+
+              if (userProjects && userProjects.length > 0) {
+                const firstProject = userProjects[0];
+                const frontendId = firstProject.frontendId || firstProject.project_id || 'neurosense-360';
+                redirectPath = `/pulseofproject?project=${frontendId}`;
+                console.log('✅ SimpleAuth: Auto-selecting first project:', frontendId);
+              } else {
+                console.log('⚠️ SimpleAuth: User has no projects assigned');
+              }
+            } catch (error) {
+              console.error('SimpleAuth: Error fetching user projects:', error);
+            }
+          }
+
+          console.log('🔵 SimpleAuth: Redirecting to:', redirectPath, 'for role:', result.user?.role);
+
+          // Use window.location for reliable redirect
+          setTimeout(() => {
+            console.log('🔵 SimpleAuth: About to redirect...');
+            window.location.href = redirectPath;
+          }, 500);
         } else {
-          toast.error(result.error || 'Login failed');
+          console.log('🔵 SimpleAuth: Login failed:', result);
+          toast.error(result?.error || 'Login failed');
         }
       } else {
         // Register
@@ -46,7 +82,13 @@ const SimpleAuth = () => {
         });
         if (result.success) {
           toast.success('Registration successful!');
-          navigate('/admin');
+
+          // Redirect based on user role
+          const redirectPath = result.user?.role === 'super_admin'
+            ? '/admin'
+            : '/pulseofproject';
+
+          navigate(redirectPath);
         } else {
           toast.error(result.error || 'Registration failed');
         }

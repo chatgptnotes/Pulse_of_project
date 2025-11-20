@@ -6,7 +6,7 @@ const PulseOfProjectPage = () => {
   // Check if we're in client mode based on URL params
   const [searchParams] = useSearchParams();
   const clientMode = searchParams.get('client') === 'true';
-  const projectId = searchParams.get('project') || 'neurosense-mvp';
+  const projectId = searchParams.get('project') || null; // No default project
 
   return (
     <PulseOfProject

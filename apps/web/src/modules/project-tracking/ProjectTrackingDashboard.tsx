@@ -79,7 +79,7 @@ const ProjectTrackingDashboard: React.FC = () => {
   };
 
   const handleKPIClick = (kpi: MilestoneKPI) => {
-    toast.info(`KPI: ${kpi.name} - ${kpi.current}/${kpi.target} ${kpi.unit}`);
+    toast(`KPI: ${kpi.name} - ${kpi.current}/${kpi.target} ${kpi.unit}`);
     console.log('KPI clicked:', kpi);
   };
 

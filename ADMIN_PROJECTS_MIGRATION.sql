@@ -206,7 +206,7 @@ FROM public.admin_projects
 ORDER BY priority, progress DESC;
 
 -- =====================================================
--- SUCCESS MESSAGE
+-- SUCCESS MESSAGEadmin
 -- =====================================================
 -- ✅ Migration Complete!
 -- • admin_projects table created

@@ -126,7 +126,7 @@ const EditableProjectDashboard: React.FC<EditableProjectDashboardProps> = ({ pro
         name: projectId.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
       };
       setProjectData(customizedData);
-      toast.info(`📋 Using default template for ${customizedData.name}. Click Save to store in database.`);
+      toast(`📋 Using default template for ${customizedData.name}. Click Save to store in database.`);
 
     } catch (error) {
       console.error('❌ Failed to load project data:', error);

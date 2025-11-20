@@ -74,7 +74,8 @@ INSERT INTO project_milestones (
     {"id": "del-ns-1-3", "text": "Supabase database setup", "completed": true},
     {"id": "del-ns-1-4", "text": "Authentication system (Super Admin, Clinic Admin, Patient)", "completed": false},
     {"id": "del-ns-1-5", "text": "Core API structure", "completed": false},
-    {"id": "del-ns-1-6", "text": "Basic routing and navigation", "completed": false}
+    {"id": "del-ns-1-6", "text": "Basic routing and navigation", "completed": false},
+    {"id": "del-ns-1-7", "text": "Website", "completed": false}
   ]'::jsonb,
   ARRAY['Backend Team', 'DevOps'],
   ARRAY[]::TEXT[],

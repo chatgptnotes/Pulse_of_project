@@ -4,12 +4,8 @@ import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './contexts/AuthContext';
 import { testSupabaseConnection } from './utils/supabaseTest';
 import ProtectedRoute from './components/ProtectedRoute';
-import LoginForm from './components/auth/LoginForm';
-import RegisterForm from './components/auth/RegisterForm';
-import ForgotPasswordForm from './components/auth/ForgotPasswordForm';
-import ResetPasswordForm from './components/auth/ResetPasswordForm';
-import ActivationPending from './components/auth/ActivationPending';
 import ErrorBoundary from './components/ErrorBoundary';
+import Footer from './components/Footer';
 import ProjectTrackingPage from './pages/ProjectTracking.jsx';
 import PulseOfProjectPage from './pages/PulseOfProject.jsx';
 import PulseOfProjectLanding from './pages/PulseOfProjectLanding.jsx';
@@ -18,6 +14,7 @@ import ShareLinksPage from './pages/ShareLinksPage.jsx';
 import WelcomePage from './pages/WelcomePage.jsx';
 import SimpleAuth from './pages/SimpleAuth.jsx';
 import AdminPage from './pages/AdminPage.jsx';
+import UserManagement from './pages/UserManagement.jsx';
 
 
 function App() {
@@ -84,51 +81,108 @@ function App() {
             v7_relativeSplatPath: true
           }}
         >
-          <div className="App">
+          <div className="App min-h-screen flex flex-col">
             {/* 🚀 Development Mode Banner */}
-            <div className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-orange-500 to-red-500 text-white text-center py-2 px-4 text-sm font-medium shadow-lg">
-              🚀 DEVELOPMENT MODE: Role-based Login Testing Enabled - Use Dev Helper (bottom-right)
+            <div className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-center py-2 px-4 text-sm font-medium shadow-lg">
+              🔒 Super Admin Access Only - Login Required for All Pages
             </div>
-            <div className="pt-12"> {/* Add padding to account for banner */}
+            <div className="pt-12 flex-grow"> {/* Add padding to account for banner */}
             <Routes>
-            {/* Public Routes */}
+            {/* Public Routes - Only Landing and Login */}
             <Route path="/" element={<WelcomePage />} />
-            <Route path="/about" element={<PulseOfProjectLanding />} />
+            <Route path="/login" element={<SimpleAuth />} />
             <Route path="/auth" element={<SimpleAuth />} />
 
-            {/* Public Project Tracking Route (for testing/demo) */}
-            <Route path="/project-tracking-public" element={<ProjectTrackingPage />} />
+            {/* Protected Routes - Super Admin Only */}
+
+            {/* About Page */}
+            <Route
+              path="/about"
+              element={
+                <ProtectedRoute>
+                  <PulseOfProjectLanding />
+                </ProtectedRoute>
+              }
+            />
 
             {/* PulseOfProject Product Routes */}
-            <Route path="/pulseofproject" element={<PulseOfProjectPage />} />
-            <Route path="/pulse" element={<PulseOfProjectPage />} />
-            <Route path="/pulse-demo" element={<PulseOfProjectPage />} />
+            <Route
+              path="/pulseofproject"
+              element={
+                <ProtectedRoute>
+                  <PulseOfProjectPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/pulse"
+              element={
+                <ProtectedRoute>
+                  <PulseOfProjectPage />
+                </ProtectedRoute>
+              }
+            />
 
-            <Route path="/login" element={<SimpleAuth />} />
-            <Route path="/register" element={<RegisterForm />} />
-            <Route path="/activation-pending" element={<ActivationPending />} />
-            <Route path="/forgot-password" element={<ForgotPasswordForm />} />
-            <Route path="/reset-password" element={<ResetPasswordForm />} />
-
-            {/* Admin Routes */}
-            <Route path="/admin" element={<AdminPage />} />
-
-            {/* Client Share View - Public (no login required) */}
-            <Route path="/client/:shareToken" element={<ClientView />} />
-
-            {/* Project Share Links - Public */}
-            <Route path="/sharelinks" element={<ShareLinksPage />} />
-            <Route path="/share-links" element={<ShareLinksPage />} />
-            <Route path="/project-links" element={<ShareLinksPage />} />
-
-            {/* Protected Routes */}
-
-            {/* Project Tracking Route */}
+            {/* Project Tracking Routes */}
             <Route
               path="/project-tracking"
               element={
                 <ProtectedRoute>
                   <ProjectTrackingPage />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Admin Routes - Super Admin Only */}
+            <Route
+              path="/admin"
+              element={
+                <ProtectedRoute requiredRole="super_admin">
+                  <AdminPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/users"
+              element={
+                <ProtectedRoute requiredRole="super_admin">
+                  <UserManagement />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Client Share View - Protected */}
+            <Route
+              path="/client/:shareToken"
+              element={
+                <ProtectedRoute>
+                  <ClientView />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Project Share Links - Protected */}
+            <Route
+              path="/sharelinks"
+              element={
+                <ProtectedRoute>
+                  <ShareLinksPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/share-links"
+              element={
+                <ProtectedRoute>
+                  <ShareLinksPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/project-links"
+              element={
+                <ProtectedRoute>
+                  <ShareLinksPage />
                 </ProtectedRoute>
               }
             />
@@ -163,6 +217,9 @@ function App() {
               },
             }}
           />
+
+          {/* App Footer with version info */}
+          <Footer />
           </div> {/* Close main App div */}
         </Router>
       </AuthProvider>
