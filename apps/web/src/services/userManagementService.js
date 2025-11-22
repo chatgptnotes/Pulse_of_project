@@ -48,37 +48,38 @@ class UserManagementService {
     try {
       console.log('📊 Fetching users with stats...');
 
-      const { data, error } = await supabase
-        .from('users_with_stats')
-        .select('*');
+      // FIXED: Skip the view and directly use fallback to avoid console errors
+      // users_with_stats view doesn't exist in the database
+      console.log('ℹ️ Using direct query method (view not configured)');
 
-      if (error) {
-        console.warn('⚠️ users_with_stats view not available, using fallback');
-        console.error('View error:', error);
+      // Fallback: Get all users and manually add project counts
+      const users = await this.getAllUsers();
 
-        // Fallback: Get all users and manually add project counts
-        const users = await this.getAllUsers();
+      // Get project counts for each user
+      const usersWithStats = await Promise.all(users.map(async (user) => {
+        const { data: projects, error: projectError } = await supabase
+          .from('user_projects')
+          .select('project_id')
+          .eq('user_id', user.id);
 
-        // Get project counts for each user
-        const usersWithStats = await Promise.all(users.map(async (user) => {
-          const { data: projects } = await supabase
-            .from('user_projects')
-            .select('project_id')
-            .eq('user_id', user.id);
-
+        if (projectError) {
+          console.warn(`⚠️ Could not fetch projects for user ${user.email}:`, projectError.message);
           return {
             ...user,
-            project_count: projects?.length || 0,
-            assigned_projects: projects?.map(p => p.project_id) || []
+            project_count: 0,
+            assigned_projects: []
           };
-        }));
+        }
 
-        console.log(`✅ Fetched ${usersWithStats.length} users via fallback`);
-        return usersWithStats;
-      }
+        return {
+          ...user,
+          project_count: projects?.length || 0,
+          assigned_projects: projects?.map(p => p.project_id) || []
+        };
+      }));
 
-      console.log(`✅ Fetched ${data?.length || 0} users from view`);
-      return data || [];
+      console.log(`✅ Fetched ${usersWithStats.length} users with stats`);
+      return usersWithStats;
     } catch (error) {
       console.error('❌ Error in getUsersWithStats:', error);
       // Last resort fallback
@@ -414,9 +415,13 @@ class UserManagementService {
    */
   async assignMultipleProjects(userId, projectIds, canEdit = false, permissions = {}) {
     try {
-      console.log(`➕ Assigning ${projectIds.length} projects to user with permissions`);
-      console.log('📋 Received permissions:', permissions);
-      console.log('✏️ Can Edit:', canEdit);
+      console.log('='.repeat(60));
+      console.log('🔐 ASSIGNING PROJECTS TO USER');
+      console.log('='.repeat(60));
+      console.log('👤 User ID:', userId);
+      console.log('📋 Project IDs to assign:', projectIds);
+      console.log('🔑 Permissions received:', permissions);
+      console.log('✏️  Can Edit:', canEdit);
 
       // Default permissions if not provided
       const defaultPermissions = {
@@ -434,7 +439,7 @@ class UserManagementService {
 
       const assignments = projectIds.map(projectId => ({
         user_id: userId,
-        project_id: projectId,
+        project_id: projectId, // This should be TEXT like "linklistnfc"
         can_edit: canEdit,
         can_view_detailed_plan: finalPermissions.canViewDetailedPlan,
         can_upload_documents: finalPermissions.canUploadDocuments,
@@ -446,24 +451,37 @@ class UserManagementService {
         assigned_by: null // Will be set by database
       }));
 
-      console.log('📦 Assignments to be saved:', assignments);
+      console.log('📦 Assignments to be saved to database:');
+      assignments.forEach((assignment, index) => {
+        console.log(`  [${index + 1}] Project: "${assignment.project_id}", User: ${assignment.user_id}`);
+      });
 
       const { data, error } = await supabase
         .from(this.assignmentsTable)
-        .upsert(assignments)
+        .upsert(assignments, {
+          onConflict: 'user_id,project_id' // Update if exists
+        })
         .select();
 
       if (error) {
-        console.error('❌ Database error:', error);
+        console.error('❌ DATABASE ERROR:', error);
+        console.error('Error code:', error.code);
+        console.error('Error message:', error.message);
+        console.error('Error details:', error.details);
         throw error;
       }
 
-      console.log('✅ Projects assigned successfully with permissions');
-      console.log('💾 Saved data:', data);
+      console.log('✅ Projects assigned successfully!');
+      console.log('💾 Database returned', data?.length || 0, 'records:');
+      data?.forEach((record, index) => {
+        console.log(`  [${index + 1}] Saved: User ${record.user_id} -> Project "${record.project_id}"`);
+      });
+      console.log('='.repeat(60));
+
       return true;
     } catch (error) {
-      console.error('❌ Error in assignMultipleProjects:', error);
-      return false;
+      console.error('❌ CRITICAL ERROR in assignMultipleProjects:', error);
+      throw error; // Re-throw to let caller handle it
     }
   }
 

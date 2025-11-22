@@ -15,58 +15,77 @@ class UserProjectsService {
     try {
       console.log('📋 Fetching projects for user:', userId);
 
-      // Call the database function to get user projects
-      const { data, error } = await supabaseClient
-        .rpc('get_user_projects', { user_uuid: userId });
+      // IMPROVED: Try RPC function first, but always use direct query as primary method
+      // This avoids unnecessary error logs when RPC doesn't exist
+      let projectData = null;
+      let useDirectQuery = true;
 
-      if (error) {
-        console.error('❌ Error fetching user projects:', error);
-        console.error('Error details:', {
-          code: error.code,
-          message: error.message,
-          details: error.details,
-          hint: error.hint
-        });
+      // Try RPC function (if it exists)
+      try {
+        const { data: rpcData, error: rpcError } = await supabaseClient
+          .rpc('get_user_projects', { user_uuid: userId });
 
-        // If function doesn't exist or RLS is blocking, try direct query
-        if (error.code === '42883' || error.code === 'PGRST116' || error.code === '42501') {
-          console.log('⚠️ Function call failed, trying direct query to admin_projects...');
-
-          // Try direct query to admin_projects
-          // Note: admin_projects has UUID 'id' and TEXT 'project_id'
-          const { data: directData, error: directError } = await supabaseClient
-            .from('admin_projects')
-            .select('project_id, name, client, description, status, priority, progress, starred, deadline')
-            .limit(100);
-
-          if (directError) {
-            console.error('❌ Direct query also failed:', directError);
-            throw directError;
-          }
-
-          console.log('✅ Direct query succeeded, found', directData?.length || 0, 'projects');
-
-          // Map database projects to frontend format
-          const mappedDirectData = this.mapDatabaseProjectsToFrontend(directData || []);
-          console.log('📦 Mapped direct projects:', mappedDirectData);
-
-          return mappedDirectData;
+        if (!rpcError && rpcData) {
+          console.log('✅ RPC function succeeded, fetched', rpcData.length, 'projects');
+          projectData = rpcData;
+          useDirectQuery = false;
+        } else if (rpcError && rpcError.code !== '42883' && rpcError.code !== 'PGRST116') {
+          // Log only if it's not a "function doesn't exist" error
+          console.warn('⚠️ RPC error (non-fatal):', rpcError.message);
         }
-
-        throw error;
+      } catch (rpcEx) {
+        // RPC failed, will use direct query
+        console.log('ℹ️ RPC not available, using direct query');
       }
 
-      console.log('✅ Fetched', data?.length || 0, 'projects for user');
-      console.log('📦 User projects data:', data);
+      // Use direct query if RPC didn't work
+      if (useDirectQuery) {
+        console.log('📋 Using direct query to fetch user projects...');
+
+        // Query user_projects first to get only assigned projects
+        const { data: userProjectIds, error: userProjectError } = await supabaseClient
+          .from('user_projects')
+          .select('project_id')
+          .eq('user_id', userId);
+
+        if (userProjectError) {
+          console.error('❌ Error fetching user_projects:', userProjectError);
+          throw userProjectError;
+        }
+
+        // Extract project IDs
+        const projectIds = (userProjectIds || []).map(up => up.project_id);
+        console.log('📋 User assigned to', projectIds.length, 'projects:', projectIds);
+
+        if (projectIds.length === 0) {
+          console.log('ℹ️ User has no assigned projects');
+          return [];
+        }
+
+        // Now fetch only the projects this user has access to
+        const { data: directData, error: directError } = await supabaseClient
+          .from('admin_projects')
+          .select('project_id, name, client, description, status, priority, progress, starred, deadline')
+          .in('project_id', projectIds);
+
+        if (directError) {
+          console.error('❌ Error fetching project details:', directError);
+          throw directError;
+        }
+
+        console.log('✅ Direct query succeeded, found', directData?.length || 0, 'projects');
+        projectData = directData;
+      }
 
       // Map database projects to frontend format
-      const mappedProjects = this.mapDatabaseProjectsToFrontend(data || []);
-      console.log('📦 Mapped projects:', mappedProjects);
+      const mappedProjects = this.mapDatabaseProjectsToFrontend(projectData || []);
+      console.log('📦 Mapped projects for user:', mappedProjects);
 
       return mappedProjects;
     } catch (error) {
       console.error('❌ getUserProjects error:', error);
-      throw error;
+      // Return empty array instead of throwing to prevent app crash
+      return [];
     }
   }
 

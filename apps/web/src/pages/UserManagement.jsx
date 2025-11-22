@@ -160,9 +160,23 @@ const UserManagement = () => {
     if (!selectedUser) return;
 
     try {
+      console.log('🔐 Assigning projects to user:', selectedUser.email);
+      console.log('📋 Selected project IDs:', selectedProjects);
+
+      // FIXED: Convert UUID IDs to project_id TEXT format
+      // selectedProjects contains UUIDs, but we need project_id (TEXT)
+      const projectIdsToAssign = selectedProjects.map(projectUuid => {
+        const project = allProjects.find(p => p.id === projectUuid);
+        // Use project_id if available, otherwise fallback to id
+        return project?.project_id || project?.id || projectUuid;
+      });
+
+      console.log('📋 Project IDs to assign (TEXT format):', projectIdsToAssign);
+      console.log('🔑 Permissions to save:', permissions);
+
       await userManagementService.assignMultipleProjects(
         selectedUser.id,
-        selectedProjects,
+        projectIdsToAssign,
         canEdit,
         permissions
       );
@@ -173,8 +187,9 @@ const UserManagement = () => {
       resetPermissions();
       loadUsers();
     } catch (error) {
-      console.error('Error assigning projects:', error);
-      toast.error('Failed to assign projects');
+      console.error('❌ Error assigning projects:', error);
+      console.error('Error details:', error.message);
+      toast.error(`Failed to assign projects: ${error.message || 'Unknown error'}`);
     }
   };
 

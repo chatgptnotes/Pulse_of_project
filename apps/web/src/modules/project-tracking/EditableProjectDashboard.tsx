@@ -19,6 +19,8 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
+import { useAuth } from '../../contexts/AuthContext';
+import userProjectsService from '../../services/userProjectsService';
 
 interface EditLock {
   userId: string;
@@ -32,6 +34,7 @@ interface EditableProjectDashboardProps {
 
 const EditableProjectDashboard: React.FC<EditableProjectDashboardProps> = ({ projectId = 'default-project' }) => {
   const navigate = useNavigate();
+  const { user } = useAuth(); // Get user from AuthContext
   // Use project-specific storage keys
   const STORAGE_KEY = `project-${projectId}-data`;
   const LAST_SAVED_KEY = `project-${projectId}-last-saved`;
@@ -46,6 +49,7 @@ const EditableProjectDashboard: React.FC<EditableProjectDashboardProps> = ({ pro
   const [comments, setComments] = useState<ProjectComment[]>([]);
   const [updates, setUpdates] = useState<ProjectUpdate[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [hasPermission, setHasPermission] = useState(true); // Track permission status
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Load saved data on mount
@@ -87,6 +91,30 @@ const EditableProjectDashboard: React.FC<EditableProjectDashboardProps> = ({ pro
   const loadProjectData = async () => {
     try {
       console.log('🔄 Loading project data from Supabase database...');
+
+      // SECURITY: Check if user has permission to access this project
+      if (user && user.role !== 'super_admin') {
+        console.log('🔐 Checking user permission for project:', projectId);
+
+        const userProjects = await userProjectsService.getUserProjects(user.id);
+        const hasAccess = userProjects.some(p =>
+          p.project_id === projectId || p.frontendId === projectId || p.id === projectId
+        );
+
+        if (!hasAccess) {
+          console.error('❌ User does not have permission to access project:', projectId);
+          toast.error('You do not have permission to access this project');
+          setHasPermission(false);
+          setIsLoading(false);
+          // Redirect to dashboard
+          setTimeout(() => {
+            navigate('/');
+          }, 2000);
+          return;
+        }
+
+        console.log('✅ User has permission to access project:', projectId);
+      }
 
       // Load from Supabase ONLY
       const supabaseProject = await ProjectTrackingService.getProject(projectId);
@@ -597,6 +625,29 @@ const EditableProjectDashboard: React.FC<EditableProjectDashboardProps> = ({ pro
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
           <p className="font-bold">Error</p>
           <p>Invalid project data. Please refresh the page.</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show permission denied message
+  if (!hasPermission) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
+        <div className="max-w-md w-full bg-white rounded-xl shadow-lg p-8 text-center">
+          <div className="flex items-center justify-center w-16 h-16 mx-auto bg-red-100 rounded-full mb-4">
+            <Lock className="h-8 w-8 text-red-600" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h2>
+          <p className="text-gray-600 mb-6">
+            You do not have permission to access this project. Redirecting to dashboard...
+          </p>
+          <button
+            onClick={() => navigate('/')}
+            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Go to Dashboard
+          </button>
         </div>
       </div>
     );

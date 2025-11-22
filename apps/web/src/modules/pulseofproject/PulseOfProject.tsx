@@ -106,19 +106,20 @@ const PulseOfProject: React.FC<PulseOfProjectProps> = ({
           const first = userProjects[0];
           frontendId = (first as any).frontendId || (first as any).project_id || (first as any).id || null;
           console.log('🎯 Auto-selecting user project from assignments:', frontendId);
+
+          if (frontendId) {
+            setSelectedProject(frontendId);
+
+            // Keep URL in sync for refresh/share
+            const params = new URLSearchParams(location.search);
+            params.set('project', frontendId);
+            navigate(`${location.pathname}?${params.toString()}`, { replace: true });
+          }
         } else {
-          // Fallback: default marketing project id used across the app
-          frontendId = 'neurosense-mvp';
-          console.log('ℹ️ No projects assigned to this user. Falling back to default project:', frontendId);
-        }
-
-        if (frontendId) {
-          setSelectedProject(frontendId);
-
-          // Keep URL in sync for refresh/share
-          const params = new URLSearchParams(location.search);
-          params.set('project', frontendId);
-          navigate(`${location.pathname}?${params.toString()}`, { replace: true });
+          // FIXED: Don't fallback to neurosense-mvp if user has no projects
+          // This was causing permission errors
+          console.log('ℹ️ No projects assigned to this user.');
+          setSelectedProject(null); // Clear selection
         }
       } catch (error) {
         console.error('❌ Failed to load user projects for auto-selection:', error);
@@ -166,6 +167,47 @@ const PulseOfProject: React.FC<PulseOfProjectProps> = ({
     setIsLoadingData(true);
 
       try {
+        // SECURITY: Check if user has permission to access this project
+        if (user && user.role !== 'super_admin' && !clientMode) {
+          console.log('🔐 Checking user permission for project:', dbProjectId);
+
+          const userProjects = await userProjectsService.getUserProjects(user.id);
+          const hasAccess = userProjects.some(p =>
+            p.project_id === dbProjectId || p.frontendId === dbProjectId || p.id === dbProjectId
+          );
+
+          if (!hasAccess) {
+            console.error('❌ User does not have permission to access project:', dbProjectId);
+
+            // FIXED: Only show toast once by checking if we already redirected
+            const hasShownError = sessionStorage.getItem('permission_error_shown');
+            if (!hasShownError) {
+              if (userProjects.length > 0) {
+                toast.error('Redirecting to your assigned project');
+              } else {
+                toast.error('No projects assigned to your account. Please contact admin.');
+              }
+              sessionStorage.setItem('permission_error_shown', 'true');
+            }
+
+            setIsLoadingData(false);
+
+            // Redirect to first available project or clear selection
+            if (userProjects.length > 0) {
+              const firstProject = userProjects[0];
+              const firstProjectId = firstProject.frontendId || firstProject.project_id || firstProject.id;
+              setSelectedProject(firstProjectId);
+            } else {
+              setSelectedProject(null);
+            }
+            return;
+          }
+
+          // Clear the error flag on successful access
+          sessionStorage.removeItem('permission_error_shown');
+          console.log('✅ User has permission to access project:', dbProjectId);
+        }
+
         // First, try to load project data from the database
         let dbProject = await ProjectTrackingService.getProject(dbProjectId);
 
@@ -755,6 +797,30 @@ const PulseOfProject: React.FC<PulseOfProjectProps> = ({
       }]);
     }, 1500);
   };
+
+  // Show "No Projects" UI if user has no projects assigned
+  if (!selectedProject && !isLoadingData && user && user.role !== 'super_admin') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-6">
+        <div className="max-w-md w-full bg-white rounded-xl shadow-lg p-8 text-center">
+          <div className="flex items-center justify-center w-16 h-16 mx-auto bg-yellow-100 rounded-full mb-4">
+            <AlertCircle className="h-8 w-8 text-yellow-600" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">No Projects Assigned</h2>
+          <p className="text-gray-600 mb-6">
+            You don't have access to any projects yet. Please contact your administrator to get project access.
+          </p>
+          <button
+            onClick={() => logout()}
+            className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-2 mx-auto"
+          >
+            <LogOut className="w-4 h-4" />
+            Logout
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
